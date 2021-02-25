@@ -23,7 +23,6 @@ object Proto: TProto
     OnDisconnected = IdTCPClient1Disconnected
     OnConnected = IdTCPClient1Connected
     ConnectTimeout = 0
-    IPVersion = Id_IPv4
     Port = 8111
     ReadTimeout = -1
     Left = 128
@@ -44,6 +43,7 @@ object Proto: TProto
         CmdDelimiter = ' '
         Command = 'CONFIG'
         Disconnect = False
+        ExceptionReply.Code = ''
         Name = 'CONFIG'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
@@ -54,6 +54,7 @@ object Proto: TProto
         CmdDelimiter = ' '
         Command = 'MOUSE'
         Disconnect = False
+        ExceptionReply.Code = ''
         Name = 'MOUSE'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
@@ -64,6 +65,7 @@ object Proto: TProto
         CmdDelimiter = ' '
         Command = 'TEST'
         Disconnect = False
+        ExceptionReply.Code = ''
         Name = 'TEST'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
@@ -74,6 +76,7 @@ object Proto: TProto
         CmdDelimiter = ' '
         Command = 'ECHO'
         Disconnect = False
+        ExceptionReply.Code = ''
         Name = 'ECHO'
         NormalReply.Code = '200'
         ParamDelimiter = ' '

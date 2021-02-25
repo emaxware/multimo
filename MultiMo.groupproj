@@ -10,18 +10,18 @@
             <Dependencies/>
         </Projects>
         <Projects Include="MultiMoSvc\MultiMoSvc.dproj">
-            <Dependencies/>
+            <Dependencies>MultiMoDLL\MultiMoDLL.dproj</Dependencies>
         </Projects>
         <Projects Include="MultiMoCLI\MultiMoCLI.dproj">
-            <Dependencies/>
+            <Dependencies>MultiMoDLL\MultiMoDLL.dproj</Dependencies>
         </Projects>
         <Projects Include="MultiMoDLL\MultiMoDLL.dproj">
             <Dependencies/>
         </Projects>
-        <Projects Include="LogTester\LogTester.dproj">
+        <Projects Include="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTsrv.dproj">
             <Dependencies/>
         </Projects>
-        <Projects Include="KeyTester\KeyTester.dproj">
+        <Projects Include="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTcl.dproj">
             <Dependencies/>
         </Projects>
     </ItemGroup>
@@ -50,22 +50,22 @@
     <Target Name="mouse_event:Make">
         <MSBuild Projects="MouseEvent\mouse_event.dproj" Targets="Make"/>
     </Target>
-    <Target Name="MultiMoSvc">
+    <Target Name="MultiMoSvc" DependsOnTargets="MultiMoDLL">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj"/>
     </Target>
-    <Target Name="MultiMoSvc:Clean">
+    <Target Name="MultiMoSvc:Clean" DependsOnTargets="MultiMoDLL:Clean">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="MultiMoSvc:Make">
+    <Target Name="MultiMoSvc:Make" DependsOnTargets="MultiMoDLL:Make">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj" Targets="Make"/>
     </Target>
-    <Target Name="MultiMoCLI">
+    <Target Name="MultiMoCLI" DependsOnTargets="MultiMoDLL">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj"/>
     </Target>
-    <Target Name="MultiMoCLI:Clean">
+    <Target Name="MultiMoCLI:Clean" DependsOnTargets="MultiMoDLL:Clean">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="MultiMoCLI:Make">
+    <Target Name="MultiMoCLI:Make" DependsOnTargets="MultiMoDLL:Make">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj" Targets="Make"/>
     </Target>
     <Target Name="MultiMoDLL">
@@ -77,32 +77,32 @@
     <Target Name="MultiMoDLL:Make">
         <MSBuild Projects="MultiMoDLL\MultiMoDLL.dproj" Targets="Make"/>
     </Target>
-    <Target Name="LogTester">
-        <MSBuild Projects="LogTester\LogTester.dproj"/>
+    <Target Name="mORMotRESTsrv">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTsrv.dproj"/>
     </Target>
-    <Target Name="LogTester:Clean">
-        <MSBuild Projects="LogTester\LogTester.dproj" Targets="Clean"/>
+    <Target Name="mORMotRESTsrv:Clean">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTsrv.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="LogTester:Make">
-        <MSBuild Projects="LogTester\LogTester.dproj" Targets="Make"/>
+    <Target Name="mORMotRESTsrv:Make">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTsrv.dproj" Targets="Make"/>
     </Target>
-    <Target Name="KeyTester">
-        <MSBuild Projects="KeyTester\KeyTester.dproj"/>
+    <Target Name="mORMotRESTcl">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTcl.dproj"/>
     </Target>
-    <Target Name="KeyTester:Clean">
-        <MSBuild Projects="KeyTester\KeyTester.dproj" Targets="Clean"/>
+    <Target Name="mORMotRESTcl:Clean">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTcl.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="KeyTester:Make">
-        <MSBuild Projects="KeyTester\KeyTester.dproj" Targets="Make"/>
+    <Target Name="mORMotRESTcl:Make">
+        <MSBuild Projects="D:\Git\mORMot\SQLite3\Samples\ThirdPartyDemos\George\REST-tester\mORMotRESTcl.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="TestSockets;mouse_event;MultiMoSvc;MultiMoCLI;MultiMoDLL;LogTester;KeyTester"/>
+        <CallTarget Targets="TestSockets;mouse_event;MultiMoSvc;MultiMoCLI;MultiMoDLL;mORMotRESTsrv;mORMotRESTcl"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="TestSockets:Clean;mouse_event:Clean;MultiMoSvc:Clean;MultiMoCLI:Clean;MultiMoDLL:Clean;LogTester:Clean;KeyTester:Clean"/>
+        <CallTarget Targets="TestSockets:Clean;mouse_event:Clean;MultiMoSvc:Clean;MultiMoCLI:Clean;MultiMoDLL:Clean;mORMotRESTsrv:Clean;mORMotRESTcl:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="TestSockets:Make;mouse_event:Make;MultiMoSvc:Make;MultiMoCLI:Make;MultiMoDLL:Make;LogTester:Make;KeyTester:Make"/>
+        <CallTarget Targets="TestSockets:Make;mouse_event:Make;MultiMoSvc:Make;MultiMoCLI:Make;MultiMoDLL:Make;mORMotRESTsrv:Make;mORMotRESTcl:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
