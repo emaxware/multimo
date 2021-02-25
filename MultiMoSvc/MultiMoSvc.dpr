@@ -2,12 +2,13 @@ program MultiMoSvc;
 
 uses
   Vcl.SvcMgr,
-  unitDebugService in '..\..\NTLowLevel100\Source\unitDebugService.pas',
   uSvcLib in 'uSvcLib.pas' {svcMultiMo: TService},
   uLoggerLib in '..\lib\uLoggerLib.pas',
   uShareLib in '..\lib\uShareLib.pas',
   uAPILogClient in '..\lib\uAPILogClient.pas',
-  uAPILib in '..\lib\uAPILib.pas';
+  uAPILib in '..\lib\uAPILib.pas',
+  unitDebugService in '..\..\hcUpdateFramework\NTLowLevel100\Source\unitDebugService.pas',
+  uConsoleLogger in '..\lib\uConsoleLogger.pas';
 
 {$R *.RES}
 
@@ -29,7 +30,8 @@ begin
 
   if (ParamCount > 0) and (ParamStr(1)='DEBUG') then
   begin
-      Application.Free;
+    SetLogger(TConsoleLogger.create('MMSVC'));
+    Application.Free;
     Application := TDebugServiceApplication.Create(nil);
   end;
 

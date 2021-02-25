@@ -7,7 +7,8 @@ program TestSockets;
 uses
   System.SysUtils,
   IdUDPServer,
-  dProtocol in '..\lib\dProtocol.pas' {Proto: TDataModule};
+  dProtocol in '..\lib\dProtocol.pas' {Proto: TDataModule},
+  uLoggerLib in '..\lib\uLoggerLib.pas';
 
 begin
   try

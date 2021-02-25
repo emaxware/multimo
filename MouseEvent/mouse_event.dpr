@@ -15,13 +15,16 @@ uses
   uMonLIb in '..\lib\uMonLIb.pas',
   uMonitorLib in '..\lib\uMonitorLib.pas',
   uHWNDLib in '..\lib\uHWNDLib.pas',
-  HidUsage in '..\lib\HidUsage.pas',
-  CnRawInput in '..\lib\CnRawInput.pas',
   uLoggerLib in '..\lib\uLoggerLib.pas',
-  uMouseHookLib in '..\lib\uMouseHookLib.pas';
+  uMouseHookLib in '..\lib\uMouseHookLib.pas',
+  uAPILib in '..\lib\uAPILib.pas',
+  uAPILogClient in '..\lib\uAPILogClient.pas',
+  uShareLib in '..\lib\uShareLib.pas',
+  uPortalWin in '..\lib\uPortalWin.pas';
 
 begin
   try
+    InitShareLog('mouseevent');
     var monDefs := initMonitors(false);
     var mouse:TInputEvent;
     if ParamCount >= 2 then
@@ -70,7 +73,7 @@ begin
         else
         if ParamStr(1)='HOOK' then
         begin
-          StartMouseMonitor(ADone, true);
+          StartMonitor(ADone, [moLLMouseHook]);
           readln
         end
         else

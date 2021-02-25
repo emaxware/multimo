@@ -86,10 +86,9 @@
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win64)'!=''">
-        <PostBuildEvent><![CDATA[echo COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)
-COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)
-echo COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoSVC\$(OUTPUTDIR)
+        <PostBuildEvent><![CDATA[COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)
 COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoSVC\$(OUTPUTDIR)
+COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\mouseevent\$(OUTPUTDIR)
 $(PostBuildEvent)]]></PostBuildEvent>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Locale>1033</VerInfo_Locale>
@@ -131,8 +130,8 @@ $(PostBuildEvent)]]></PostBuildEvent>
                     <Source Name="MainSource">MultiMoDLL.dpr</Source>
                 </Source>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k260.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp260.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k270.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp270.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
             <Deployment Version="3">
@@ -1217,7 +1216,7 @@ $(PostBuildEvent)]]></PostBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
-        <PostBuildEvent>echo COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)&amp;&amp;COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)&amp;&amp;echo COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoSVC\$(OUTPUTDIR)&amp;&amp;COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoSVC\$(OUTPUTDIR)</PostBuildEvent>
+        <PostBuildEvent>COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoCLI\$(OUTPUTDIR)&amp;&amp;COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\MultiMoSVC\$(OUTPUTDIR)&amp;&amp;COPY $(OUTPUTPATH) $(OUTPUTDIR)..\..\..\mouseevent\$(OUTPUTDIR)</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
 </Project>

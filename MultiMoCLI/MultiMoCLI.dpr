@@ -28,7 +28,8 @@ uses
   uLoggerLib in '..\lib\uLoggerLib.pas',
   uAPILib in '..\lib\uAPILib.pas',
   uMouseHookLib in '..\lib\uMouseHookLib.pas',
-  uPortalWin in '..\lib\uPortalWin.pas';
+  uPortalWin in '..\lib\uPortalWin.pas',
+  uConsoleLogger in '..\lib\uConsoleLogger.pas';
 
 var
   ACount:uint8;
@@ -41,16 +42,17 @@ begin
 
     InitShareLog('MultiMoCLI');
     SetLogger(
-      TSimpleLogger.create(
+      TConsoleLogger.create(
 //        TThreadPool.Default,
-        function(APriority:TLogPriority; const ALogMsg, AMsg:string):string
-        begin
-          writeln(ALogMsg);
-          SLog^.log(ALogMsg);
-          result := AMsg
-        end
-        , 'MULTIMOCLI'
-//        , lpInfo
+//        function(APriority:TLogPriority; const ALogMsg, AMsg:string):string
+//        begin
+//          writeln(ALogMsg);
+//          SLog^.log(ALogMsg);
+//          result := AMsg
+//        end
+        'MULTIMOCLI'
+        , true
+        , lpDebug
         , lpDebug
       ));
     ADone := TEvent.Create(nil, true, false, '');

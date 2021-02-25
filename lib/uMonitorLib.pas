@@ -9,7 +9,11 @@ uses
   ;
 
 type
-  TMonitorOpt = (moAddMessagePump, moLLMouseHook, moMouseHook, moCBTHook);
+  TMonitorOpt = (moAddMessagePump
+  , moLLMouseHook
+  , moMouseHook
+  , moCBTHook
+  );
   TMonitorOpts = set of TMonitorOpt;
 
 procedure StartMonitor(ACancel:TEvent; Opts:TMonitorOpts);
@@ -31,9 +35,9 @@ uses
   uMonLib,
   uEventLib,
   uMouseHookLib,
-  uHWNDLib,
-  HidUsage,
-  CnRawInput
+  uHWNDLib
+//  HidUsage,
+//  CnRawInput
   , uLoggerLib
   , uPortalWin
   , uAPILib
@@ -194,26 +198,26 @@ begin
                   PendingMove.Emit;
                   PendingMove.Clear
                 end;
-                WM_INPUT:
-                begin
-                  var Ri: tagRAWINPUT;
-                  var Size: Cardinal;
-                  Ri.header.dwSize := SizeOf(RAWINPUTHEADER);
-                  Size := SizeOf(RAWINPUTHEADER);
-                  GetRawInputData(HRAWINPUT(msg.LParam), RID_INPUT, nil,
-                    Size, SizeOf(RAWINPUTHEADER));
-
-                  if GetRawInputData(HRAWINPUT(msg.LParam), RID_INPUT, @Ri,
-                    Size, SizeOf(RAWINPUTHEADER)) = Size then
-                  begin
-                    case Ri.header.dwType of
-                      RIM_TYPEMOUSE:
-                      begin
-//                        log('MONHWND: WM_INPUT %d,%d',[ri.mouse.lLastX, ri.mouse.lLastY]);
-                      end;
-                    end;
-                  end;
-                end;
+//                WM_INPUT:
+//                begin
+//                  var Ri: tagRAWINPUT;
+//                  var Size: Cardinal;
+//                  Ri.header.dwSize := SizeOf(RAWINPUTHEADER);
+//                  Size := SizeOf(RAWINPUTHEADER);
+//                  GetRawInputData(HRAWINPUT(msg.LParam), RID_INPUT, nil,
+//                    Size, SizeOf(RAWINPUTHEADER));
+//
+//                  if GetRawInputData(HRAWINPUT(msg.LParam), RID_INPUT, @Ri,
+//                    Size, SizeOf(RAWINPUTHEADER)) = Size then
+//                  begin
+//                    case Ri.header.dwType of
+//                      RIM_TYPEMOUSE:
+//                      begin
+////                        log('MONHWND: WM_INPUT %d,%d',[ri.mouse.lLastX, ri.mouse.lLastY]);
+//                      end;
+//                    end;
+//                  end;
+//                end;
               end
             except
               on e:exception do
@@ -225,14 +229,14 @@ begin
           );
         result := true;
 
-        AssertWin32(GetRawInputAPIS, 'GetRawInputAPIS', true);
-
-        var rid: RAWINPUTDEVICE;
-        rid.usUsagePage := HID_USAGE_PAGE_GENERIC;
-        rid.usUsage := HID_USAGE_GENERIC_MOUSE;
-        rid.dwFlags :=  RIDEV_INPUTSINK;
-        rid.hwndTarget := MonHWND.HWND;
-        AssertWin32(RegisterRawINputDevices(@rid, 1, sizeof(rid)), 'Registering rawinputdevice', true);
+//        AssertWin32(GetRawInputAPIS, 'GetRawInputAPIS', true);
+//
+//        var rid: RAWINPUTDEVICE;
+//        rid.usUsagePage := HID_USAGE_PAGE_GENERIC;
+//        rid.usUsage := HID_USAGE_GENERIC_MOUSE;
+//        rid.dwFlags :=  RIDEV_INPUTSINK;
+//        rid.hwndTarget := MonHWND.HWND;
+//        AssertWin32(RegisterRawINputDevices(@rid, 1, sizeof(rid)), 'Registering rawinputdevice', true);
 
         ResetMonDefs(InitMonitors(false));
 
@@ -265,64 +269,64 @@ begin
                     var deskpt,monpt,sclpt,normPt:TPoint;
                     var polarpt:TPointf;
                     var monDef:TMonitorDef;
-                    if pt.FromMousePtToMonPt(
-                      MonDefs
-                      , monIndex
-                      , deskpt
-                      , monpt
-                      , sclpt
-                      , normPt
-                      , polarpt
-                      , monDef) then
-                    begin
-                      var foundWin:TPortalWindow := nil;
-                      var foundIndex := 0;
-                      for var win in MonMasks do
-                        if win.Rect.Contains(deskpt) then
-                        begin
-                          foundWin := win;
-                          break
-                        end
-                        else
-                          inc(foundIndex);
-                      if assigned(foundWin) then
-                      begin
-                        if (nextIndex <> foundIndex) then
-                        begin
-                          log(lpInfo,'%d -> %d',[foundIndex,(foundIndex+1) mod MonMasks.Count]);
-                          nextIndex := (foundIndex+1) mod MonMasks.Count;
-                          sclpt.SetLocation(
-                            sclpt.X
-                              -(MonMasks[foundIndex].Rect.Left-MonMasks[foundIndex].Mon.orig.x)
-                              +(MonMasks[nextIndex].Rect.Left-MonMasks[nextIndex].Mon.orig.x)
-                            , sclpt.Y
-                              -(MonMasks[foundIndex].Rect.Top-MonMasks[foundIndex].Mon.orig.y)
-                              +(MonMasks[nextIndex].Rect.Top-MonMasks[nextIndex].Mon.orig.y)
-                            );
-                          PendingMove.MoveTo(
-                            MonMasks[nextIndex].Mon
-                            , sclpt.FromScaledtoMon(MonMasks[nextIndex].Mon));// double(-0.25), double(0.25));
-                          PostMessage(MonHWND.HWND, WM_MOVEMOUSE, 0, 0);
-                        end
-                        else
-                          log(lpVerbose,foundWin.Mon.monname);
-                      end
-                      else
-                      begin
-                        nextIndex := -1;
-                        log(lpDebug,'HOOK: %d %d -> mon:%d,%d scale:%d,%d desk:%d,%d norm:%d,%d polar:%.2f,%.2f mon(#%d %d,%d %d,%d)',[
-                          pt.x, pt.y
-                          , monpt.x, monpt.Y
-                          , sclpt.X, sclpt.y
-                          , deskpt.X, deskpt.Y
-                          , normpt.x, normpt.y
-                          , polarpt.x, polarpt.Y
-                          , monIndex
-                          , mondef.orig.x, mondef.orig.y, mondef.size.width, mondef.size.height
-                          ]);
-                      end;
-                    end
-                    else
+//                    if pt.FromMousePtToMonPt(
+//                      MonDefs
+//                      , monIndex
+//                      , deskpt
+//                      , monpt
+//                      , sclpt
+//                      , normPt
+//                      , polarpt
+//                      , monDef) then
+//                    begin
+//                      var foundWin:TPortalWindow := nil;
+//                      var foundIndex := 0;
+//                      for var win in MonDefs do
+//                        if win.Rect.Contains(deskpt) then
+//                        begin
+//                          foundWin := win;
+//                          break
+//                        end
+//                        else
+//                          inc(foundIndex);
+//                      if assigned(foundWin) then
+//                      begin
+//                        if (nextIndex <> foundIndex) then
+//                        begin
+//                          log(lpInfo,'%d -> %d',[foundIndex,(foundIndex+1) mod MonMasks.Count]);
+//                          nextIndex := (foundIndex+1) mod MonMasks.Count;
+//                          sclpt.SetLocation(
+//                            sclpt.X
+//                              -(MonMasks[foundIndex].Rect.Left-MonMasks[foundIndex].Mon.orig.x)
+//                              +(MonMasks[nextIndex].Rect.Left-MonMasks[nextIndex].Mon.orig.x)
+//                            , sclpt.Y
+//                              -(MonMasks[foundIndex].Rect.Top-MonMasks[foundIndex].Mon.orig.y)
+//                              +(MonMasks[nextIndex].Rect.Top-MonMasks[nextIndex].Mon.orig.y)
+//                            );
+//                          PendingMove.MoveTo(
+//                            MonMasks[nextIndex].Mon
+//                            , sclpt.FromScaledtoMon(MonMasks[nextIndex].Mon));// double(-0.25), double(0.25));
+//                          PostMessage(MonHWND.HWND, WM_MOVEMOUSE, 0, 0);
+//                        end
+//                        else
+//                          log(lpVerbose,foundWin.Mon.monname);
+//                      end
+//                      else
+//                      begin
+//                        nextIndex := -1;
+//                        log(lpDebug,'HOOK: %d %d -> mon:%d,%d scale:%d,%d desk:%d,%d norm:%d,%d polar:%.2f,%.2f mon(#%d %d,%d %d,%d)',[
+//                          pt.x, pt.y
+//                          , monpt.x, monpt.Y
+//                          , sclpt.X, sclpt.y
+//                          , deskpt.X, deskpt.Y
+//                          , normpt.x, normpt.y
+//                          , polarpt.x, polarpt.Y
+//                          , monIndex
+//                          , mondef.orig.x, mondef.orig.y, mondef.size.width, mondef.size.height
+//                          ]);
+//                      end;
+//                    end
+//                    else
                       log(lpVerbose,'LLMOUSE: WM_MOUSEMOVE %d %d (%X)',[
                         pt.X
                         , pt.Y

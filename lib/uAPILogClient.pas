@@ -6,6 +6,7 @@ uses
   System.SyncObjs
   , uShareLib
   , winapi.windows
+  , uLoggerLib
 //  , uAPILib
   ;
 
@@ -15,6 +16,8 @@ const
     100 * 1024;
 
 type
+  TLogBuffer = TArray<Byte>;
+
   TLogHeader = record
     logtime:TDatetime;
     logcnt:cardinal;
@@ -25,8 +28,8 @@ type
   TSharedLog = record
     timestamp:TDateTime;
     writecnt:cardinal;
-    count:Uint8;
-    nextPos:UInt32;
+    opencnt:cardinal;
+    nextPos:cardinal;
     buffer:array[0..LogBufferSize] of byte;
   end;
   PSharedLog = ^TSharedLog;
@@ -36,22 +39,43 @@ type
     function log(const AFmtMsg:shortstring; Args:array of const; ATimeout:Cardinal = 500; ACancelEvent:TEvent = nil):boolean; overload;
   end;
 
-  function writelog(var ASharedMem:TSharedMem; const AMsg:shortstring; ATimeout:Cardinal = 500; ACancelEvent:TEvent = nil):boolean; overload;
+  TLoggerClient = class(TSimpleLogger)
+  public
+    constructor create(const AModulename:string;
+      WithConsole:Boolean = false;
+      AThresholdPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+      ; ADefaultPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+      );
+  end;
 
-function InitShareLog(const ADesc:string; Async:boolean = false):boolean;
+function InitShareLog(const ADesc:string; WithDefaultConsoleLogger:boolean):boolean;
+function WriteLog(var ASharedMem:TSharedMem; const AMsg:shortstring; ATimeout:Cardinal = 500; ACancelEvent:TEvent = nil):boolean; overload;
 
 var
   SLog:PSharedMem = nil;
+//  SLogger:ILogger = nil;
 
 implementation
 
 uses
   System.SysUtils
+  , System.Threading
   , winapi.psapi
-  , uLoggerLib
+  , uConsoleLogger
+  , JclConsole
   ;
 
-function InitShareLog(const ADesc:string; Async:boolean = false):boolean;
+function InitShareLog;
 begin
   result := false;
   if SLog = nil then
@@ -59,36 +83,44 @@ begin
     result := true;
 //    APIDLLStarted := true;
     new(SLog);
-    OpenSharedMem('Log', SLog^, sizeof(TSharedLog),
+    OpenSharedMem(ADesc+'Log', SLog^, sizeof(TSharedLog),
       function(AData:PSharedHeader):boolean
       var ALogData:PSharedLog absolute AData;
       begin
-        inc(ALogData^.count);
-        SLog^.refcnt := ALogData^.count;
+        inc(ALogData^.opencnt);
+        SLog^.opencnt := ALogData^.opencnt;
         result := true
       end);
 
-    SetLogger(
-      TSimpleLogger.create(
-//        TThreadPool.Default,
-        function(APriority:TLogPriority; const ALogMsg, AMsg:string):string
-        begin
-{$IFDEF ISCONSOLE}
-          writeln(ALogMsg);
-{$ENDIF}
-          SLog^.log(ALogMsg);
-          result := AMsg
-        end
-        , ProcessFileName(GetCurrentProcessID, false) + '-' + ADesc
-        , lpInfo
-//{$IFDEF INDLL}
-//        , 'MULTIMODLL'
-//{$ELSE}
-//        , 'MULTIMOCLI'
-//{$ENDIF}
-      ));
+    if WithDefaultConsoleLogger then
+      SetLogger(TLoggerClient.create(ADesc,True));
 
-      log(lpInfo,'InitShareLog: '+ADesc)
+////    if ASync then
+//    SLogger :=
+//      TSimpleLogger.create(
+////      TAsyncLogger.create(
+////        TThreadPool.Default,
+//        function(APriority:TLogPriority; const ALogMsg, AMsg:string):string
+//        begin
+//{$IFDEF ISCONSOLE}
+//          writeln(ALogMsg);
+//{$ENDIF}
+//          SLog^.log(ALogMsg);
+//          result := AMsg
+//        end
+//        , ProcessFileName(GetCurrentProcessID, false) + '-' + ADesc
+//        , lpDebug
+//        , lpDebug
+////{$IFDEF INDLL}
+////        , 'MULTIMODLL'
+////{$ELSE}
+////        , 'MULTIMOCLI'
+////{$ENDIF}
+//      );
+//
+//      SetLogger(SLogger);
+//
+//      log(lpInfo,'InitShareLog: '+ADesc)
   end;
 end;
 
@@ -97,7 +129,7 @@ begin
   result := writelog(self, AMsg, ATimeout, ACancelEvent)
 end;
 
-function writelog(var ASharedMem:TSharedMem; const AMsg:shortstring; ATimeout:Cardinal = 500; ACancelEvent:TEvent = nil):boolean;
+function WriteLog(var ASharedMem:TSharedMem; const AMsg:shortstring; ATimeout:Cardinal = 500; ACancelEvent:TEvent = nil):boolean;
 var hdr:TLogHeader;
 begin
   hdr.logmsg := AMsg;
@@ -155,6 +187,25 @@ function TLogHeaderHelper.log(const AFmtMsg: shortstring; Args: array of const;
   ATimeout: Cardinal; ACancelEvent: TEvent): boolean;
 begin
   result := self.log(format(AFmtMsg,Args), ATimeout, ACancelEvent)
+end;
+
+{ TLoggerClient }
+
+constructor TLoggerClient.create;
+begin
+//  if WithConsole then
+//    TConsoleLogger.AddConsoleBuffer
+  inherited Create(
+    function(APriority:TLogPriority; const ALogMsg, AMsg:string):string
+    begin
+      if HaveDefaultConsole(WithConsole) then
+        TJclConsole.Default.Screens[0].Write(ALogMsg+#13#10);
+      SLog^.log(ALogMsg);
+      result := AMsg
+    end,
+    AModuleName,
+    AThresholdPriority,
+    ADefaultPriority)
 end;
 
 end.

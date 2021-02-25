@@ -10,12 +10,18 @@
             <Dependencies/>
         </Projects>
         <Projects Include="MultiMoSvc\MultiMoSvc.dproj">
-            <Dependencies>MultiMoDLL\MultiMoDLL.dproj</Dependencies>
+            <Dependencies/>
         </Projects>
         <Projects Include="MultiMoCLI\MultiMoCLI.dproj">
-            <Dependencies>MultiMoDLL\MultiMoDLL.dproj</Dependencies>
+            <Dependencies/>
         </Projects>
         <Projects Include="MultiMoDLL\MultiMoDLL.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="LogTester\LogTester.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="KeyTester\KeyTester.dproj">
             <Dependencies/>
         </Projects>
     </ItemGroup>
@@ -44,22 +50,22 @@
     <Target Name="mouse_event:Make">
         <MSBuild Projects="MouseEvent\mouse_event.dproj" Targets="Make"/>
     </Target>
-    <Target Name="MultiMoSvc" DependsOnTargets="MultiMoDLL">
+    <Target Name="MultiMoSvc">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj"/>
     </Target>
-    <Target Name="MultiMoSvc:Clean" DependsOnTargets="MultiMoDLL:Clean">
+    <Target Name="MultiMoSvc:Clean">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="MultiMoSvc:Make" DependsOnTargets="MultiMoDLL:Make">
+    <Target Name="MultiMoSvc:Make">
         <MSBuild Projects="MultiMoSvc\MultiMoSvc.dproj" Targets="Make"/>
     </Target>
-    <Target Name="MultiMoCLI" DependsOnTargets="MultiMoDLL">
+    <Target Name="MultiMoCLI">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj"/>
     </Target>
-    <Target Name="MultiMoCLI:Clean" DependsOnTargets="MultiMoDLL:Clean">
+    <Target Name="MultiMoCLI:Clean">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="MultiMoCLI:Make" DependsOnTargets="MultiMoDLL:Make">
+    <Target Name="MultiMoCLI:Make">
         <MSBuild Projects="MultiMoCLI\MultiMoCLI.dproj" Targets="Make"/>
     </Target>
     <Target Name="MultiMoDLL">
@@ -71,14 +77,32 @@
     <Target Name="MultiMoDLL:Make">
         <MSBuild Projects="MultiMoDLL\MultiMoDLL.dproj" Targets="Make"/>
     </Target>
+    <Target Name="LogTester">
+        <MSBuild Projects="LogTester\LogTester.dproj"/>
+    </Target>
+    <Target Name="LogTester:Clean">
+        <MSBuild Projects="LogTester\LogTester.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="LogTester:Make">
+        <MSBuild Projects="LogTester\LogTester.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="KeyTester">
+        <MSBuild Projects="KeyTester\KeyTester.dproj"/>
+    </Target>
+    <Target Name="KeyTester:Clean">
+        <MSBuild Projects="KeyTester\KeyTester.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="KeyTester:Make">
+        <MSBuild Projects="KeyTester\KeyTester.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="TestSockets;mouse_event;MultiMoSvc;MultiMoCLI;MultiMoDLL"/>
+        <CallTarget Targets="TestSockets;mouse_event;MultiMoSvc;MultiMoCLI;MultiMoDLL;LogTester;KeyTester"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="TestSockets:Clean;mouse_event:Clean;MultiMoSvc:Clean;MultiMoCLI:Clean;MultiMoDLL:Clean"/>
+        <CallTarget Targets="TestSockets:Clean;mouse_event:Clean;MultiMoSvc:Clean;MultiMoCLI:Clean;MultiMoDLL:Clean;LogTester:Clean;KeyTester:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="TestSockets:Make;mouse_event:Make;MultiMoSvc:Make;MultiMoCLI:Make;MultiMoDLL:Make"/>
+        <CallTarget Targets="TestSockets:Make;mouse_event:Make;MultiMoSvc:Make;MultiMoCLI:Make;MultiMoDLL:Make;LogTester:Make;KeyTester:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

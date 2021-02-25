@@ -20,7 +20,7 @@ type
     size:cardinal;
     lasttime:TDateTime;
     lastwritecnt:cardinal;
-    refcnt:byte;
+    opencnt:cardinal;
     busy:TMutex;
     dirty:TEvent;
     hmapping:THandle;
@@ -48,7 +48,7 @@ uses
   ;
 
 const
-  SharedMem = 'MM';
+  SharedMemPrefix = 'MM';
 
 function WaitForSharedMem(var ASharedMem:TSharedMem; ATimeout:cardinal; ACancelEvent:TEvent; AWhileLocked:TFunc<PSharedHeader,boolean>):boolean;
 begin
@@ -58,11 +58,11 @@ begin
   if (ACancelEvent = nil) then
     handles := [signal]
   else
-    handles := [ACancelEvent,signal];
+    handles := [signal,ACancelEvent];
   var rslt := THandleObject.WaitForMultiple(handles, ATimeout, false, waitRslt);
   case rslt of
-    wrTimeout:
-      result := false;
+//    wrTimeout:
+//      result := false;
     wrSignaled:
       result := waitRslt = signal;
     wrAbandoned:
@@ -76,6 +76,8 @@ begin
 {$ENDIF}
       result := false;
     end;
+    else
+      result := false
   end;
   if result then
   try
@@ -112,11 +114,11 @@ begin
   if (ACancelEvent = nil) then
     handles := [dirty]
   else
-    handles := [ACancelEvent,dirty];
+    handles := [dirty,ACancelEvent];
   var rslt := THandleObject.WaitForMultiple(handles, ASignalTimeout, false, waitRslt);
   case rslt of
-    wrTimeout:
-      result := true;
+//    wrTimeout:
+//      result := true;
     wrSignaled:
       result := waitRslt = dirty;
     wrAbandoned:
@@ -129,6 +131,8 @@ begin
 {$ENDIF}
       result := false;
     end;
+    else
+      result := false;
   end;
   if result then
   try
@@ -181,26 +185,26 @@ begin
   ASharedMem.name := AName;
   ASharedMem.size := ASize;
 
-  var hmapping := OpenFileMapping(FILE_MAP_ALL_ACCESS, true, pchar('Global\'+SharedMem+AName));
+  var hmapping := OpenFileMapping(FILE_MAP_ALL_ACCESS, true, pchar('Global\'+SharedMemPrefix+AName));
   var error := GetLastError();
 
   if hmapping = 0 then
   begin
     if error <> ERROR_FILE_NOT_FOUND then
       RaiseLastOSError(error);
-    hmapping := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, ASize, pchar('Global\'+SharedMem+AName));
+    hmapping := CreateFileMapping(INVALID_HANDLE_VALUE, nil, PAGE_READWRITE, 0, ASize, pchar('Global\'+SharedMemPrefix+AName));
     if hmapping = 0 then
       RaiseLastOSError;
     MakeObjectShareable(hmapping);
-    ASharedMem.busy := TMutex.create(nil, false, 'Global\'+SharedMem+AName+'busy');
+    ASharedMem.busy := TMutex.create(nil, false, 'Global\'+SharedMemPrefix+AName+'busy');
     MakeObjectShareable(ASharedMem.busy.Handle);
-    ASharedMem.dirty := TEvent.Create(nil, true, false, 'Global\'+SharedMem+AName+'signal');
+    ASharedMem.dirty := TEvent.Create(nil, true, false, 'Global\'+SharedMemPrefix+AName+'signal');
     MakeObjectShareable(ASharedMem.dirty.Handle);
   end
   else
   begin
-    ASharedMem.busy := TMutex.create(nil, false, 'Global\'+SharedMem+AName+'busy');
-    ASharedMem.dirty := TEvent.Create(nil, true, false, 'Global\'+SharedMem+AName+'signal');
+    ASharedMem.busy := TMutex.create(nil, false, 'Global\'+SharedMemPrefix+AName+'busy');
+    ASharedMem.dirty := TEvent.Create(nil, true, false, 'Global\'+SharedMemPrefix+AName+'signal');
   end;
 
   ASharedMem.hmapping := hmapping;

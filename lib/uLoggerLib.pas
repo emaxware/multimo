@@ -455,7 +455,7 @@ begin
 //  else
   try
     result := //AMsg;
-      formatsync('%s%s-%10s-%8d-%s',[
+      formatsync('%s%s-%-10s-%8d-%s',[
       CLogPrefix[APriority]
       , formatdatetime(ADate)
       , AModuleName
