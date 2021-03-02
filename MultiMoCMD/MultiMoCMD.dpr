@@ -1,4 +1,4 @@
-program TestSockets;
+program MultiMoCMD;
 
 {$APPTYPE CONSOLE}
 
@@ -6,18 +6,16 @@ program TestSockets;
 
 uses
   System.SysUtils,
-  IdUDPServer,
   dProtocol in '..\lib\dProtocol.pas' {Proto: TDataModule},
-  uLoggerLib in '..\lib\uLoggerLib.pas';
+  uLoggerLib in '..\lib\uLoggerLib.pas',
+  uConsoleLogger in '..\lib\uConsoleLogger.pas';
 
 begin
   try
-    var dm := TProto.Create(nil);
-    dm.cmdTcpServer.DefaultPort := 8111;
-    dm.cmdTcpClient.BoundPort := 8111;
-
+    writeln('MultiMoCMD');
   except
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);
   end;
+  readln
 end.

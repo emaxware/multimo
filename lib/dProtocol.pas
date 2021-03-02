@@ -8,20 +8,18 @@ uses
   , System.SyncObjs, IdCustomTCPServer, IdTCPServer, IdCmdTCPServer,
   IdTCPConnection, IdTCPClient, IdUDPClient, IdBaseComponent, IdComponent,
   IdUDPBase, IdUDPServer, IdContext, IdCommandHandlers, IdIOHandler,
-  IdSocketHandle, IdGlobal
+  IdSocketHandle, IdGlobal, IdCmdTCPClient
   ;
 
 type
   TProto = class(TDataModule)
-    IdUDPServer1: TIdUDPServer;
-    IdUDPClient1: TIdUDPClient;
-    IdTCPClient1: TIdTCPClient;
-    IdCmdTCPServer1: TIdCmdTCPServer;
-    procedure IdCmdTCPServer1Execute(AContext: TIdContext);
-    procedure IdCmdTCPServer1Connect(AContext: TIdContext);
+    cmdTcpServer: TIdCmdTCPServer;
+    cmdTcpClient: TIdCmdTCPClient;
+    procedure cmdTcpServerExecute(AContext: TIdContext);
+    procedure cmdTcpServerConnect(AContext: TIdContext);
     procedure IdTCPClient1Connected(Sender: TObject);
     procedure IdTCPClient1Disconnected(Sender: TObject);
-    procedure IdCmdTCPServer1Disconnect(AContext: TIdContext);
+    procedure cmdTcpServerDisconnect(AContext: TIdContext);
     procedure IdUDPServer1Status(ASender: TObject; const AStatus: TIdStatus;
       const AStatusText: string);
     procedure IdUDPServer1UDPRead(AThread: TIdUDPListenerThread;
@@ -85,9 +83,6 @@ end;
 
 procedure TProto.Broadcast(const AMsg: string; APort:word);
 begin
-  log('BROADCAST %X',[APort]);
-  IdUDPClient1.Port := APort;
-  IdUDPClient1.Broadcast(AMsg, APort);
 end;
 
 procedure TProto.HandleCommand(ASender:TIdCommand; AHandler:TFunc<TIdTcpConnection,integer>);
@@ -113,17 +108,17 @@ begin
   log(format('%s: %s > %s',[ASender.CommandHandler.Command, 'REPLY', ASender.Reply.FormattedReply.Text]));
 end;
 
-procedure TProto.IdCmdTCPServer1Connect(AContext: TIdContext);
+procedure TProto.cmdTcpServerConnect(AContext: TIdContext);
 begin
   log('tcpserver connected..')
 end;
 
-procedure TProto.IdCmdTCPServer1Disconnect(AContext: TIdContext);
+procedure TProto.cmdTcpServerDisconnect(AContext: TIdContext);
 begin
   log('tcpserver disconnected..');
 end;
 
-procedure TProto.IdCmdTCPServer1Execute(AContext: TIdContext);
+procedure TProto.cmdTcpServerExecute(AContext: TIdContext);
 begin
   log('IdCmdTCPServer1Execute')
 end;
@@ -153,46 +148,48 @@ end;
 
 procedure TProto.Send(const Cmd:string; writer: TFunc<TIdTCPConnection, integer>);
 begin
-  if not IdTCPClient1.Connected then
-    IdTCPClient1.Connect;
-  if not IdTCPClient1.Connected then
+  if not cmdTcpClient.Connected then
+    cmdTcpClient.Connect;
+  if not cmdTcpClient.Connected then
     raise Exception.create('Not connected!!');
-  var connection := IdTCPClient1;
-  var response := TIdReplyRFC.Create(nil);
-  try
-    log(format('%s: %s',[cmd,'writing cmd']));
-    connection.IOHandler.writeln(Cmd);// SendCmd(Cmd, 200);
-    try
-      log(format('%s: %s',[cmd,'getting response']));
-      var reply := IdTCPClient1.GetResponse(200);
-      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
-      writer(connection);
-      log(format('%s: %s',[cmd,'writing message']));
-      response.SetReply(200,cmd + ' OK');
-    except
-      on e:exception do
-      begin
-        log(format('%s: !!%s',[cmd,e.ClassName,e.message]));
-        response.SetReply(404,format('%s: %s %s',[cmd,e.ClassName,e.message]));
-      end;
-    end;
-  finally
-    var finalResponse := response.FormattedReply;
-    log(format('%s: %s > %s %s',[cmd,'REPLY',response.Code,finalResponse.Text]));
-    connection.IOHandler.Write(finalResponse);
-    try
-      var reply := IdTCPClient1.GetResponse();
-      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
-    finally
-      IdTCPClient1.Disconnect
-    end;
-  end;
+
+//  cmdTcpClient.CommandHandlers.
+//  var connection := IdTCPClient1;
+//  var response := TIdReplyRFC.Create(nil);
+//  try
+//    log(format('%s: %s',[cmd,'writing cmd']));
+//    connection.IOHandler.writeln(Cmd);// SendCmd(Cmd, 200);
+//    try
+//      log(format('%s: %s',[cmd,'getting response']));
+//      var reply := IdTCPClient1.GetResponse(200);
+//      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
+//      writer(connection);
+//      log(format('%s: %s',[cmd,'writing message']));
+//      response.SetReply(200,cmd + ' OK');
+//    except
+//      on e:exception do
+//      begin
+//        log(format('%s: !!%s',[cmd,e.ClassName,e.message]));
+//        response.SetReply(404,format('%s: %s %s',[cmd,e.ClassName,e.message]));
+//      end;
+//    end;
+//  finally
+//    var finalResponse := response.FormattedReply;
+//    log(format('%s: %s > %s %s',[cmd,'REPLY',response.Code,finalResponse.Text]));
+//    connection.IOHandler.Write(finalResponse);
+//    try
+//      var reply := IdTCPClient1.GetResponse();
+//      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
+//    finally
+//      IdTCPClient1.Disconnect
+//    end;
+//  end;
 end;
 
 procedure TProto.StartClient(AServerIP:string; APort:word; ACancel: TEvent);
 begin
   FCancel := ACancel;
-  with IdTCPClient1 do
+  with cmdTcpClient do
   begin
     Host := AServerIP;
     Port := APort
@@ -214,14 +211,14 @@ begin
     log(ip)
   end;
 
-  IdCmdTCPServer1.Active := true;
-  IdUDPServer1.DefaultPort := APort;
+  cmdTcpServer.Active := true;
+  cmdTcpServer.DefaultPort := APort;
 
 //  IdUDPServer1.Bindings[0].Port := APort;
 //  IdUDPServer1.Bindings[0].IP := '192.168.1.1';
-  IdUDPServer1.Active := true;
+//  IdUDPServer1.Active := true;
   ACancel.WaitFor(INFINITE);
-  IdCmdTCPServer1.Active := false
+  cmdTcpServer.Active := false
 end;
 
 { TCommandHandler }
@@ -232,7 +229,7 @@ begin
   FProto := AProto;
   FCommand := ACommand;
   FHandler := AHandler;
-  with FProto.IdCmdTCPServer1.CommandHandlers.Add do
+  with FProto.cmdTcpServer.CommandHandlers.Add do
   begin
     Command := ACommand;
     OnCommand := self.handler;

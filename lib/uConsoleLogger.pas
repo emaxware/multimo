@@ -3,14 +3,32 @@ unit uConsoleLogger;
 interface
 
 uses
-  uLoggerLib
+  system.Classes
+  , uLoggerLib
+{$IFDEF MSWINDOWS}
   , JclConsole
+  , System.Threading
+{$ENDIF}
   ;
 
 type
   TConsoleLogger = class(TSimpleLogger)
+{$IFDEF MSWINDOWS}
+  private
+    type
+      TConsoleMonitor = class(TThread)
+      protected
+        procedure Execute; override;
+      end;
+
+    class var
+      fConsoleMonitor:TConsoleMonitor;
   protected
+    class var
+      FDefaultConsoleBuffer:TJclScreenBuffer;
+
     FConsoleBuffer:TJclScreenBuffer;
+{$ENDIF}
 //    function InternalLog(ALogLevel:TLogPriority; const ALogMsg:string):string; override;
   public
     constructor create(const AModuleName:string; UseDefaultConsole:boolean = true
@@ -18,38 +36,36 @@ type
       ; AUptoLevel:TLogPriority = lpDebug// lpInfo
       );
 
+{$IFDEF MSWINDOWS}
     class function AddConsoleBuffer:TJclScreenBuffer;
+    class function HaveDefaultConsole(tryCreateIfNotExists:boolean): Boolean;
+{$ENDIF}
   end;
 
-procedure BreakIfNot(ACondition:Boolean); overload;
-procedure BreakIf(ACondition:Boolean); overload;
-procedure BreakIf(AObject:TObject); overload;
-
-function HaveDefaultConsole(tryCreateIfNotExists:boolean): Boolean;
 
 //function AmGUIApp:boolean;
 
 implementation
 
 uses
-  Windows
-  , classes
-  , System.SysUtils
+  System.SysUtils
+{$IFDEF MSWINDOWS}
+  , winapi.windows
+{$ENDIF}
   ;
 
+{$IFDEF MSWINDOWS}
 var
+  FAmGUIApp:boolean = true;
   FCheckDefaultConsole:boolean = True;
   FHaveDefaultConsole:boolean = false;
-  FAmGUIApp:boolean = true;
-//  _FLog:ILog = nil;
-  FDefaultConsoleBuffer:TJclScreenBuffer = nil;
 
 function AmGUIApp:boolean;
 begin
   result := FAmGUIApp
 end;
 
-function HaveDefaultConsole(tryCreateIfNotExists:boolean): Boolean;
+class function TConsoleLogger.HaveDefaultConsole(tryCreateIfNotExists:boolean): Boolean;
 var
   Stdout: THandle;
 begin
@@ -78,21 +94,13 @@ begin
   result := FHaveDefaultConsole
 end;
 
-type
-  TConsoleMonitor = class(TThread)
-  protected
-    procedure Execute; override;
-  end;
-
-var
-  fConsoleMonitor:TConsoleMonitor = nil;
-
 class function TConsoleLogger.AddConsoleBuffer: TJclScreenBuffer;
 begin
   result := TJclConsole.Default.Add;
   if fConsoleMonitor = nil then
     fConsoleMonitor := TConsoleMonitor.Create(false)
 end;
+{$ENDIF}
 
 constructor TConsoleLogger.create;
 begin
@@ -202,28 +210,9 @@ end;
 //    end
 //end;
 
-procedure BreakIf(ACondition:Boolean);
-begin
-  if ACondition then
-//  asm
-//    int 3
-//  end;
-end;
-
-procedure BreakIfNot(ACondition:Boolean);
-begin
-  BreakIf(not ACondition)
-end;
-
-procedure BreakIf(AObject:TObject);
-begin
-  BreakIf(AObject = nil)
-end;
-
-
 { TLoggerMonitor }
 
-procedure TConsoleMonitor.Execute;
+procedure TConsoleLogger.TConsoleMonitor.Execute;
 var index:integer;
 begin
   with TJclConsole.Default do

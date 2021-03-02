@@ -3,8 +3,10 @@ unit uLoggerLib;
 interface
 
 uses
-  winapi.windows
-  , system.classes
+  system.classes
+{$IFDEF MSWINDOWS}
+  , Winapi.windows
+{$ENDIF}
   , System.Sysutils
   , System.Generics.Collections
   , System.Syncobjs
@@ -60,6 +62,8 @@ type
 //    class var
       FFormatSettingSync:TFormatSettings;
       FFormatSyncObj:TMutex;// TCriticalSection;
+      class var
+        DefLogger:ILogger;
     var
       FPriorityThreshold, FDefaultPriority: TLogPriority;
       FOnLog:TOnLog;
@@ -165,13 +169,20 @@ procedure LogDebug(const AFmtStr:string; const Args:array of const); overload;
 procedure Log(Ex:Exception;const AMsg:string); overload;
 procedure Log(Ex:Exception;const AFmtStr:string; const Args:array of const); overload;
 
+procedure BreakIfNot(ACondition:Boolean); overload;
+procedure BreakIf(ACondition:Boolean); overload;
+procedure BreakIf(AObject:TObject); overload;
+
+{$IFDEF MSWINDOWS}
 function AssertWin32(IsTrue:boolean; const AFmtStr:string; const Args:array of const; RaiseException:boolean = false):boolean; overload;
 function AssertWin32(IsTrue:boolean; const AMsg:string; RaiseException:boolean = false):boolean; overload;
 
 function ProcessFileName(PID: DWORD; Fullpath:boolean): string;
+{$ENDIF}
 
 implementation
 
+{$IFDEF MSWINDOWS}
 uses
   winapi.psapi
 //  , system.syncobjs
@@ -227,58 +238,75 @@ begin
       raise EAssertWin32.Create(msg);
   end
 end;
+{$ENDIF}
 
-var
-  DefLogger:ILogger = nil;
+procedure BreakIf(ACondition:Boolean);
+begin
+  if ACondition then
+//  asm
+//    int 3
+//  end;
+end;
+
+procedure BreakIfNot(ACondition:Boolean);
+begin
+  BreakIf(not ACondition)
+end;
+
+procedure BreakIf(AObject:TObject);
+begin
+  BreakIf(AObject = nil)
+end;
+
 
 procedure SetLogger(ALogger:ILogger);
 begin
-  DefLogger := ALogger
+  TSimpleLogger.DefLogger := ALogger
 end;
 
 procedure FlushLog;
 begin
-  DefLogger.StopLog
+  TSimpleLogger.DefLogger.StopLog
 end;
 
 procedure Log(const AMsg:string);
 begin
-  DefLogger.DefLog(AMsg)
+  TSimpleLogger.DefLogger.DefLog(AMsg)
 end;
 
 procedure Log(const AFmtStr:string; const Args:array of const);
 begin
-  DefLogger.DefLogFmt(AFmtStr,Args)
+  TSimpleLogger.DefLogger.DefLogFmt(AFmtStr,Args)
 end;
 
 procedure Log(APriority:TLogPriority; const AMsg:string); overload;
 begin
-  DefLogger.Log(APriority,AMsg)
+  TSimpleLogger.DefLogger.Log(APriority,AMsg)
 end;
 
 procedure Log(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const);
 begin
-  DefLogger.LogFmt(APriority, AFmtStr, Args)
+  TSimpleLogger.DefLogger.LogFmt(APriority, AFmtStr, Args)
 end;
 
 procedure LogDebug(const AMsg:string);
 begin
-  DefLogger.LogDebug(AMsg)
+  TSimpleLogger.DefLogger.LogDebug(AMsg)
 end;
 
 procedure LogDebug(const AFmtStr:string; const Args:array of const);
 begin
-  DefLogger.LogDebugFmt(AFmtStr,Args)
+  TSimpleLogger.DefLogger.LogDebugFmt(AFmtStr,Args)
 end;
 
 procedure Log(Ex:Exception;const AMsg:string);
 begin
-  DefLogger.LogError(Ex,AMsg)
+  TSimpleLogger.DefLogger.LogError(Ex,AMsg)
 end;
 
 procedure Log(Ex:Exception;const AFmtStr:string; const Args:array of const);
 begin
-  DefLogger.LogErrorFmt(Ex,AFmtStr,Args)
+  TSimpleLogger.DefLogger.LogErrorFmt(Ex,AFmtStr,Args)
 end;
 
 procedure sync(AProc:TThreadProcedure);

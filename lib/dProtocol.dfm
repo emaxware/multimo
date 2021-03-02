@@ -2,42 +2,17 @@ object Proto: TProto
   OldCreateOrder = False
   Height = 262
   Width = 373
-  object IdUDPServer1: TIdUDPServer
-    OnStatus = IdUDPServer1Status
-    BroadcastEnabled = True
-    Bindings = <>
-    DefaultPort = 8111
-    OnUDPRead = IdUDPServer1UDPRead
-    Left = 32
-    Top = 32
-  end
-  object IdUDPClient1: TIdUDPClient
-    BroadcastEnabled = True
-    BoundPort = 8111
-    Host = '192.168.1.1'
-    Port = 0
-    Left = 32
-    Top = 96
-  end
-  object IdTCPClient1: TIdTCPClient
-    OnDisconnected = IdTCPClient1Disconnected
-    OnConnected = IdTCPClient1Connected
-    ConnectTimeout = 0
-    Port = 8111
-    ReadTimeout = -1
-    Left = 128
-    Top = 96
-  end
-  object IdCmdTCPServer1: TIdCmdTCPServer
+  object cmdTcpServer: TIdCmdTCPServer
+    Active = True
     Bindings = <
       item
         IP = '0.0.0.0'
         Port = 8111
       end>
     DefaultPort = 8111
-    OnConnect = IdCmdTCPServer1Connect
-    OnDisconnect = IdCmdTCPServer1Disconnect
-    OnExecute = IdCmdTCPServer1Execute
+    OnConnect = cmdTcpServerConnect
+    OnDisconnect = cmdTcpServerDisconnect
+    OnExecute = cmdTcpServerExecute
     CommandHandlers = <
       item
         CmdDelimiter = ' '
@@ -99,7 +74,66 @@ object Proto: TProto
     ReplyUnknownCommand.Code = '400'
     ReplyUnknownCommand.Text.Strings = (
       'Unknown Command')
-    Left = 128
+    Left = 48
     Top = 32
+  end
+  object cmdTcpClient: TIdCmdTCPClient
+    OnDisconnected = IdTCPClient1Disconnected
+    OnConnected = IdTCPClient1Connected
+    BoundIP = 'LOCALHOST'
+    BoundPort = 8111
+    ConnectTimeout = 0
+    Port = 0
+    ReadTimeout = -1
+    CommandHandlers = <
+      item
+        CmdDelimiter = ' '
+        Command = 'CONFIG'
+        Disconnect = False
+        ExceptionReply.Code = ''
+        Name = 'cmdCONFIG'
+        NormalReply.Code = '200'
+        ParamDelimiter = ' '
+        ParseParams = True
+        Tag = 0
+      end
+      item
+        CmdDelimiter = ' '
+        Command = 'MOUSE'
+        Disconnect = False
+        ExceptionReply.Code = ''
+        Name = 'cmdMOUSE'
+        NormalReply.Code = '200'
+        ParamDelimiter = ' '
+        ParseParams = True
+        Tag = 0
+      end
+      item
+        CmdDelimiter = ' '
+        Command = 'TEST'
+        Disconnect = False
+        ExceptionReply.Code = ''
+        Name = 'cmdTEST'
+        NormalReply.Code = '200'
+        ParamDelimiter = ' '
+        ParseParams = True
+        Tag = 0
+      end
+      item
+        CmdDelimiter = ' '
+        Command = 'ECHO'
+        Disconnect = False
+        ExceptionReply.Code = ''
+        Name = 'cmdECHO'
+        NormalReply.Code = '200'
+        ParamDelimiter = ' '
+        ParseParams = True
+        Tag = 0
+      end>
+    ExceptionReply.Code = '500'
+    ExceptionReply.Text.Strings = (
+      'Unknown Internal Error')
+    Left = 48
+    Top = 96
   end
 end
