@@ -3,12 +3,7 @@ object Proto: TProto
   Height = 262
   Width = 373
   object cmdTcpServer: TIdCmdTCPServer
-    Active = True
-    Bindings = <
-      item
-        IP = '0.0.0.0'
-        Port = 8111
-      end>
+    Bindings = <>
     DefaultPort = 8111
     OnConnect = cmdTcpServerConnect
     OnDisconnect = cmdTcpServerDisconnect
@@ -57,6 +52,7 @@ object Proto: TProto
         ParamDelimiter = ' '
         ParseParams = True
         Tag = 0
+        OnCommand = cmdTcpServerCommandHandlers3Command
       end>
     ExceptionReply.Code = '500'
     ExceptionReply.Text.Strings = (
@@ -77,7 +73,7 @@ object Proto: TProto
     Left = 48
     Top = 32
   end
-  object cmdTcpClient: TIdCmdTCPClient
+  object _cmdTcpClient: TIdCmdTCPClient
     OnDisconnected = IdTCPClient1Disconnected
     OnConnected = IdTCPClient1Connected
     BoundIP = 'LOCALHOST'
@@ -135,5 +131,13 @@ object Proto: TProto
       'Unknown Internal Error')
     Left = 48
     Top = 96
+  end
+  object tcpClient: TIdTCPClient
+    ConnectTimeout = 0
+    Port = 0
+    ReadTimeout = -1
+    OnAfterBind = tcpClientAfterBind
+    Left = 48
+    Top = 160
   end
 end

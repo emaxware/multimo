@@ -93,6 +93,7 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
+        <Debugger_RunParams>PORT 8989</Debugger_RunParams>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
@@ -106,10 +107,11 @@
         </DelphiCompile>
         <DCCReference Include="..\lib\dProtocol.pas">
             <Form>Proto</Form>
-            <FormType>dfm</FormType>
             <DesignClass>TDataModule</DesignClass>
         </DCCReference>
         <DCCReference Include="..\lib\uLoggerLib.pas"/>
+        <DCCReference Include="..\lib\uCommandLineOptions.pas"/>
+        <DCCReference Include="..\lib\uConsoleLogger.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

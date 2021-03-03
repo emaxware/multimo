@@ -8,27 +8,26 @@ uses
   , System.SyncObjs, IdCustomTCPServer, IdTCPServer, IdCmdTCPServer,
   IdTCPConnection, IdTCPClient, IdUDPClient, IdBaseComponent, IdComponent,
   IdUDPBase, IdUDPServer, IdContext, IdCommandHandlers, IdIOHandler,
-  IdSocketHandle, IdGlobal, IdCmdTCPClient
+  IdSocketHandle, IdGlobal, IdCmdTCPClient, IdMappedPortTCP
   ;
 
 type
   TProto = class(TDataModule)
     cmdTcpServer: TIdCmdTCPServer;
-    cmdTcpClient: TIdCmdTCPClient;
+    _cmdTcpClient: TIdCmdTCPClient;
+    tcpClient: TIdTCPClient;
     procedure cmdTcpServerExecute(AContext: TIdContext);
     procedure cmdTcpServerConnect(AContext: TIdContext);
     procedure IdTCPClient1Connected(Sender: TObject);
     procedure IdTCPClient1Disconnected(Sender: TObject);
     procedure cmdTcpServerDisconnect(AContext: TIdContext);
-    procedure IdUDPServer1Status(ASender: TObject; const AStatus: TIdStatus;
-      const AStatusText: string);
-    procedure IdUDPServer1UDPRead(AThread: TIdUDPListenerThread;
-      const AData: TIdBytes; ABinding: TIdSocketHandle);
+    procedure cmdTcpServerCommandHandlers3Command(ASender: TIdCommand);
+    procedure tcpClientAfterBind(Sender: TObject);
   private
     class
       var FProto:TProto;
     { Private declarations }
-    FCancel:TEvent;
+//    FCancel:TEvent;
 //    FConfigHandler, FMouseHandler, FTestHandler:TFunc<TIdTcpConnection,integer>;
     procedure HandleCommand(ASender: TIdCommand; AHandler:TFunc<TIdTcpConnection,integer>);
   public
@@ -37,9 +36,11 @@ type
 
     procedure StartServer(ACancel:TEvent; APort:word);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
     procedure AddCmdHandler(const ACommand:string;AHandler:TFunc<TIdTcpConnection,integer>);
-    procedure StartClient(AServerIP:string; APort:word; ACancel:TEvent);
-    procedure Send(const Cmd:string; writer:TFunc<TIdTCPConnection, integer>);
+    procedure StartClient(const AServerIP:string; APort:word; ACancel:TEvent);
+    procedure SendEcho(const msg:string);//; writer:TFunc<TIdTCPConnection, integer>);
     procedure Broadcast(const AMsg:string; APort:word);
+
+    procedure Stop;
   end;
 
   TCommandHandler = class
@@ -108,19 +109,26 @@ begin
   log(format('%s: %s > %s',[ASender.CommandHandler.Command, 'REPLY', ASender.Reply.FormattedReply.Text]));
 end;
 
+procedure TProto.cmdTcpServerCommandHandlers3Command(ASender: TIdCommand);
+begin
+  var msg := ASender.Context.Connection.IOHandler.ReadLn;
+  Log('%s %s',[ASender.CommandHandler.Command, msg]);
+  ASender.Context.Connection.IOHandler.WriteLn(Format('ECHOED %s',[msg]))
+end;
+
 procedure TProto.cmdTcpServerConnect(AContext: TIdContext);
 begin
-  log('tcpserver connected..')
+  log('cmdTcpServerConnect')
 end;
 
 procedure TProto.cmdTcpServerDisconnect(AContext: TIdContext);
 begin
-  log('tcpserver disconnected..');
+  log('cmdTcpServerDisconnect');
 end;
 
 procedure TProto.cmdTcpServerExecute(AContext: TIdContext);
 begin
-  log('IdCmdTCPServer1Execute')
+  log('cmdTcpServerExecute')
 end;
 
 procedure TProto.IdTCPClient1Connected(Sender: TObject);
@@ -133,26 +141,17 @@ begin
   log('tcpclient disconnected..')
 end;
 
-procedure TProto.IdUDPServer1Status(ASender: TObject; const AStatus: TIdStatus;
-  const AStatusText: string);
+procedure TProto.SendEcho(const Msg:string);//; writer: TFunc<TIdTCPConnection, integer>);
 begin
-  log('IdUDPServer1Status: %s',[AStatusText])
-end;
-
-procedure TProto.IdUDPServer1UDPRead(AThread: TIdUDPListenerThread;
-  const AData: TIdBytes; ABinding: TIdSocketHandle);
-begin
-  var data := BytesToString(AData);
-  log('IdUDPServer1UDPRead: %s',[data]);
-end;
-
-procedure TProto.Send(const Cmd:string; writer: TFunc<TIdTCPConnection, integer>);
-begin
-  if not cmdTcpClient.Connected then
-    cmdTcpClient.Connect;
-  if not cmdTcpClient.Connected then
+  if not tcpClient.Connected then
+    tcpClient.Connect;
+  if not tcpClient.Connected then
     raise Exception.create('Not connected!!');
 
+  tcpClient.SendCmd('ECHO');
+//  var context := TIdContext.Create(tcpClient, nil, nil);
+//  _cmdTcpClient.CommandHandlers.Items[3].DoCommand(Msg, context, '');
+//  cmdTcpClient.SendCmd('ECHO hello');
 //  cmdTcpClient.CommandHandlers.
 //  var connection := IdTCPClient1;
 //  var response := TIdReplyRFC.Create(nil);
@@ -186,19 +185,20 @@ begin
 //  end;
 end;
 
-procedure TProto.StartClient(AServerIP:string; APort:word; ACancel: TEvent);
+procedure TProto.StartClient(const AServerIP:string; APort:word; ACancel: TEvent);
 begin
-  FCancel := ACancel;
-  with cmdTcpClient do
+//  FCancel := ACancel;
+  with tcpClient do
   begin
     Host := AServerIP;
-    Port := APort
-  end;
+    Port := APort;
+    Connect
+  end
 end;
 
 procedure TProto.StartServer(ACancel: TEvent; APort:word);
 begin
-  FCancel := ACancel;
+//  FCancel := ACancel;
   var ips:TStrings;
   TidStack.IncUsage;
   try
@@ -206,19 +206,31 @@ begin
   finally
     TidStack.DecUsage
   end;
-  for var ip in ips do
+  for var _ip in ips do
+  with cmdTcpServer.Bindings.Add do
   begin
-    log(ip)
+    IP := _ip;
+    Port := APort;
+    log('Echo server starting on %s..',[ip])
   end;
 
-  cmdTcpServer.Active := true;
   cmdTcpServer.DefaultPort := APort;
+  cmdTcpServer.Active := true;
+//
+//  ACancel.WaitFor(INFINITE);
+//  cmdTcpServer.Active := false
+end;
 
-//  IdUDPServer1.Bindings[0].Port := APort;
-//  IdUDPServer1.Bindings[0].IP := '192.168.1.1';
-//  IdUDPServer1.Active := true;
-  ACancel.WaitFor(INFINITE);
-  cmdTcpServer.Active := false
+procedure TProto.Stop;
+begin
+  cmdTcpServer.Active := false;
+//  cmdTcpClient.Disconnect;
+  tcpClient.Disconnect;
+end;
+
+procedure TProto.tcpClientAfterBind(Sender: TObject);
+begin
+
 end;
 
 { TCommandHandler }
