@@ -27,7 +27,7 @@ uses
   HidUsage in '..\lib\HidUsage.pas',
   uLoggerLib in '..\lib\uLoggerLib.pas',
   uAPILib in '..\lib\uAPILib.pas',
-  uMouseHookLib in '..\lib\uMouseHookLib.pas',
+  uLLHookLib in '..\lib\uLLHookLib.pas',
   uPortalWin in '..\lib\uPortalWin.pas',
   uConsoleLogger in '..\lib\uConsoleLogger.pas';
 

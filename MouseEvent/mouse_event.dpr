@@ -16,7 +16,7 @@ uses
   uMonitorLib in '..\lib\uMonitorLib.pas',
   uHWNDLib in '..\lib\uHWNDLib.pas',
   uLoggerLib in '..\lib\uLoggerLib.pas',
-  uMouseHookLib in '..\lib\uMouseHookLib.pas',
+  uLLHookLib in '..\lib\uLLHookLib.pas',
   uAPILib in '..\lib\uAPILib.pas',
   uAPILogClient in '..\lib\uAPILogClient.pas',
   uShareLib in '..\lib\uShareLib.pas',

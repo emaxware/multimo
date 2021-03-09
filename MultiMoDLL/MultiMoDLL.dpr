@@ -13,11 +13,11 @@ library MultiMoDLL;
 uses
   winapi.windows,
   system.sysutils,
+  uLLHookLib in '..\lib\uLLHookLib.pas',
+  {$IFDEF SHARELIB}
   uShareLib in '..\lib\uShareLib.pas',
-  uAPILogClient in '..\lib\uAPILogClient.pas',
-  uLoggerLib in '..\lib\uLoggerLib.pas',
-  uMouseHookLib in '..\lib\uMouseHookLib.pas',
-  uAPILib in '..\lib\uAPILib.pas';
+  {$ENDIF }
+  uLoggerLib in '..\lib\uLoggerLib.pas';
 
 {$R *.res}
 

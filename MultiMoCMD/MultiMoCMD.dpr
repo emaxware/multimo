@@ -15,7 +15,7 @@ uses
   uCommandLineOptions in '..\lib\uCommandLineOptions.pas',
   uConsoleLogger in '..\lib\uConsoleLogger.pas',
   uSendInput in '..\lib\uSendInput.pas',
-  uMouseHookLib in '..\lib\uMouseHookLib.pas';
+  uLLHookLib in '..\lib\uLLHookLib.pas';
 
 var
   opts:TCmdOptions = nil;
@@ -58,14 +58,22 @@ begin
       try
         if vals.Enabled['HOOK'] then
         begin
-          StartLLMouseHook(function(code:integer; wparam:WPARAM; var llMouse:TLLMouseHookStruct):boolean
-            begin
-              result := true;
-              writeln(format('%d,%d',[
-                llMouse.pt.x,
-                llMouse.pt.y
-                ]));
-            end);
+          with TLLMouseHook.create do
+          begin
+//            var kbdHook := TLLKbdHook.create;
+//            readln;
+//            terminate;
+//            kbdHook.Terminate
+          end;
+
+//          StartLLMouseHook(function(code:integer; wparam:WPARAM; var llMouse:TLLMouseHookStruct):boolean
+//            begin
+//              result := true;
+//              writeln(format('%d,%d',[
+//                llMouse.pt.x,
+//                llMouse.pt.y
+//                ]));
+//            end);
         end;
 
         if vals.Enabled['SERVER'] then
