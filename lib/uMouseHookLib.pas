@@ -5,7 +5,22 @@ interface
 uses
   Winapi.windows
   , System.SysUtils
+  , Vcl.Forms
   ;
+
+const
+  SYNERGY_MSG_MARK            = WM_APP + $0011;        // mark id; <unused>
+  SYNERGY_MSG_KEY             = WM_APP + $0012;        // vk code; key data
+  SYNERGY_MSG_MOUSE_BUTTON    = WM_APP + $0013;        // button msg; <unused>
+  SYNERGY_MSG_MOUSE_WHEEL     = WM_APP + $0014;        // delta; <unused>
+  SYNERGY_MSG_MOUSE_MOVE      = WM_APP + $0015;        // x; y
+  SYNERGY_MSG_POST_WARP       = WM_APP + $0016;        // <unused>; <unused>
+  SYNERGY_MSG_PRE_WARP        = WM_APP + $0017;        // x; y
+  SYNERGY_MSG_SCREEN_SAVER    = WM_APP + $0018;        // activated; <unused>
+  SYNERGY_MSG_DEBUG           = WM_APP + $0019;        // data, data
+  SYNERGY_MSG_INPUT_FIRST     = SYNERGY_MSG_KEY;
+  SYNERGY_MSG_INPUT_LAST      = SYNERGY_MSG_PRE_WARP;
+  SYNERGY_HOOK_LAST_MSG       = SYNERGY_MSG_DEBUG;
 
 type
   PLLMouseHookStruct = ^TLLMouseHookStruct;
@@ -19,7 +34,9 @@ type
   TLLMouseHookStruct = tagLLMOUSEHOOKSTRUCT;
   LLMOUSEHOOKSTRUCT = tagLLMOUSEHOOKSTRUCT;
 
-function StartLLMouseHook(OnHook:TFunc<integer,wparam,PLLMouseHookStruct,boolean>):boolean;
+  TLLMouseProc = reference to function(code:integer; wparam:WPARAM; var llMouse:TLLMouseHookStruct):boolean;
+
+function StartLLMouseHook(OnHook:TLLMouseProc):boolean;
 procedure EndLLMouseHook;
 
 function StartMouseHook:boolean;//(OnHook:TFunc<integer,wparam,PMouseHookStruct,boolean>):boolean;
@@ -35,15 +52,17 @@ implementation
 uses
   winapi.messages
   , system.syncobjs
+{$IFDEF SHARELIB}
   , uShareLib
   , uAPILogClient
   , uAPILib
+{$ENDIF}
   , uLoggerLib
   ;
 
 var
   HookHandle:HHOOK = 0;
-  FOnLLMouseHook:TFunc<integer,wparam,PLLMouseHookStruct,boolean> = nil;
+  FOnLLMouseHook:TLLMouseProc = nil;
 
 procedure EndLLMouseHook;
 begin
@@ -53,20 +72,30 @@ end;
 function LowLevelMouseProc(code: Integer; wparam: WPARAM; lparam: LPARAM): LRESULT stdcall;
 var MouseInfo:PLLMouseHookStruct absolute lparam;
 begin
+{$IFDEF SHARELIB}
   InitShareLog('LowLevelMouseProc');
-  if FOnLLMouseHook(code,wparam,MouseInfo) then
+{$ENDIF}
+  writeln('LowLevelMouseProc');
+//  if FOnLLMouseHook(code,wparam,MouseInfo^) then
     result := CallNextHookEx(HookHandle, code, wparam, lparam)
 end;
 
-function StartLLMouseHook(OnHook:TFunc<integer,wparam,PLLMouseHookStruct,boolean>):boolean;
+var
+  llHWND:HWND;
+
+function StartLLMouseHook(OnHook:TLLMouseProc):boolean;
 begin
+{$IFDEF SHARELIB}
   InitShareLog('StartLLMouseHook');
+{$ENDIF}
+  log('Starting StartLLMouseHook');
+  llHWND := createh
   FOnLLMouseHook := OnHook;
   HookHandle := SetWindowsHookEx(WH_MOUSE_LL, @LowLevelMouseProc, 0, 0);
   result := HookHandle <> 0
 end;
 
-{$IFNDEF INDLL}
+{$IF DEFINED(USEDLLHOOK) AND NOT DEFINED(INDLL)}
 
 function StartMouseHook:boolean; external 'MultiMoDLL.dll'; //(OnHook:TFunc<integer,wparam,PMouseHookStruct,boolean>):boolean;
 procedure EndMouseHook; external 'MultiMoDLL.dll';
@@ -74,7 +103,9 @@ procedure EndMouseHook; external 'MultiMoDLL.dll';
 function StartCBTHook:boolean; external 'MultiMoDLL.dll';//(OnHook:TFunc<integer,wparam,PMouseHookStruct,boolean>):boolean;
 procedure EndCBTHook; external 'MultiMoDLL.dll';
 
-{$ELSE}
+{$IFEND}
+
+{$IF NOT DEFINED(USEDLLHOOK) OR DEFINED(INDLL)}
 
 var
   initLog:boolean = true;
@@ -93,6 +124,7 @@ begin
     hookbusy := TCriticalSection.Create;
   hookbusy.Acquire;
   try
+{$IFDEF SHARELIB}
     if InitShareLog('CBTProc') then
       ;
     if logger = nil then
@@ -111,6 +143,9 @@ begin
       logger.log(lpVerbose,'new logger');
     end;
     with logger do
+{$ELSE}
+    with TSimpleLogger.DefLogger do
+{$ENDIF}
     case wparam of
       WM_MOUSEMOVE:
         deflog('MouseProc: WM_MOUSEMOVE');
@@ -151,7 +186,9 @@ end;
 
 function StartMouseHook:boolean;//(OnHook:TFunc<integer,wparam,PMouseHookStruct,boolean>):boolean;
 begin
+{$IFDEF SHARELIB}
   InitShareLog('StartMouseHook');
+{$ENDIF}
   HookHandle := SetWindowsHookEx(WH_MOUSE, @MouseProc, hinstance, 0);
   log('StartMouseHook: %d %X',[HookHandle,hinstance]);
   result := HookHandle <> 0
@@ -168,6 +205,7 @@ begin
     hookbusy := TCriticalSection.Create;
   hookbusy.Acquire;
   try
+{$IFDEF SHARELIB}
     if InitShareLog('CBTProc') then
       ;
     if logger = nil then
@@ -186,6 +224,9 @@ begin
       logger.log(lpVerbose,'new logger');
     end;
     with logger do
+{$ELSE}
+    with TSimpleLogger.DefLogger do
+{$ENDIF}
     case code of
       HCBT_MOVESIZE:
         deflog('CBTProc: HCBT_MOVESIZE');
@@ -218,7 +259,9 @@ end;
 
 function StartCBTHook:boolean;//(OnHook:TFunc<integer,wparam,PMouseHookStruct,boolean>):boolean;
 begin
+{$IFDEF SHARELIB}
   InitShareLog('StartCBTHook');
+{$ENDIF}
   HookHandle := SetWindowsHookEx(WH_CBT, @CBTProc, hinstance, 0);
   log('StartCBTHook: %X %X',[HookHandle,hinstance]);
   result := HookHandle <> 0

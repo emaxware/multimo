@@ -112,6 +112,7 @@
         <DCCReference Include="..\lib\uLoggerLib.pas"/>
         <DCCReference Include="..\lib\uCommandLineOptions.pas"/>
         <DCCReference Include="..\lib\uConsoleLogger.pas"/>
+        <DCCReference Include="..\lib\uSendInput.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

@@ -100,6 +100,34 @@ begin
   if fConsoleMonitor = nil then
     fConsoleMonitor := TConsoleMonitor.Create(false)
 end;
+
+{ TLoggerMonitor }
+
+procedure TConsoleLogger.TConsoleMonitor.Execute;
+var index:integer;
+begin
+  with TJclConsole.Default do
+  while Input.WaitEvent do
+  begin
+    with Input.GetEvent do
+      case EventType of
+      KEY_EVENT:
+      begin
+        case Event.KeyEvent.AsciiChar of
+          '1'..'9':
+          begin
+            index := ord(Event.KeyEvent.AsciiChar) - ord('1');
+            if index < ScreenCount then
+              ActiveScreenIndex := index;
+          end;
+          'k','K':
+            ExitProcess(0)
+        end;
+      end;
+    end;
+  end;
+end;
+
 {$ENDIF}
 
 constructor TConsoleLogger.create;
@@ -209,33 +237,6 @@ end;
 //      Write(ALogMsg+#13#10)
 //    end
 //end;
-
-{ TLoggerMonitor }
-
-procedure TConsoleLogger.TConsoleMonitor.Execute;
-var index:integer;
-begin
-  with TJclConsole.Default do
-  while Input.WaitEvent do
-  begin
-    with Input.GetEvent do
-      case EventType of
-      KEY_EVENT:
-      begin
-        case Event.KeyEvent.AsciiChar of
-          '1'..'9':
-          begin
-            index := ord(Event.KeyEvent.AsciiChar) - ord('1');
-            if index < ScreenCount then
-              ActiveScreenIndex := index;
-          end;
-          'k','K':
-            ExitProcess(0)
-        end;
-      end;
-    end;
-  end;
-end;
 
 initialization
 

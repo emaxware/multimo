@@ -63,7 +63,7 @@ type
       FFormatSettingSync:TFormatSettings;
       FFormatSyncObj:TMutex;// TCriticalSection;
       class var
-        DefLogger:ILogger;
+        fDefLogger:ILogger;
     var
       FPriorityThreshold, FDefaultPriority: TLogPriority;
       FOnLog:TOnLog;
@@ -102,6 +102,7 @@ type
 
     function formatsync(const AFmtStr:string; Args:array of const):string;
     function formatdatetime(ADate:TDateTime):string;
+    class function DefLogger:ILogger; overload;
 
     property ThresholdPriority:TLogPriority read FPriorityThreshold write FPriorityThreshold;
     property DefaultPriority:TLogPriority read FDefaultPriority write FDefaultPriority;
@@ -261,52 +262,52 @@ end;
 
 procedure SetLogger(ALogger:ILogger);
 begin
-  TSimpleLogger.DefLogger := ALogger
+  TSimpleLogger.fDefLogger := ALogger
 end;
 
 procedure FlushLog;
 begin
-  TSimpleLogger.DefLogger.StopLog
+  TSimpleLogger.fDefLogger.StopLog
 end;
 
 procedure Log(const AMsg:string);
 begin
-  TSimpleLogger.DefLogger.DefLog(AMsg)
+  TSimpleLogger.fDefLogger.DefLog(AMsg)
 end;
 
 procedure Log(const AFmtStr:string; const Args:array of const);
 begin
-  TSimpleLogger.DefLogger.DefLogFmt(AFmtStr,Args)
+  TSimpleLogger.fDefLogger.DefLogFmt(AFmtStr,Args)
 end;
 
 procedure Log(APriority:TLogPriority; const AMsg:string); overload;
 begin
-  TSimpleLogger.DefLogger.Log(APriority,AMsg)
+  TSimpleLogger.fDefLogger.Log(APriority,AMsg)
 end;
 
 procedure Log(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const);
 begin
-  TSimpleLogger.DefLogger.LogFmt(APriority, AFmtStr, Args)
+  TSimpleLogger.fDefLogger.LogFmt(APriority, AFmtStr, Args)
 end;
 
 procedure LogDebug(const AMsg:string);
 begin
-  TSimpleLogger.DefLogger.LogDebug(AMsg)
+  TSimpleLogger.fDefLogger.LogDebug(AMsg)
 end;
 
 procedure LogDebug(const AFmtStr:string; const Args:array of const);
 begin
-  TSimpleLogger.DefLogger.LogDebugFmt(AFmtStr,Args)
+  TSimpleLogger.fDefLogger.LogDebugFmt(AFmtStr,Args)
 end;
 
 procedure Log(Ex:Exception;const AMsg:string);
 begin
-  TSimpleLogger.DefLogger.LogError(Ex,AMsg)
+  TSimpleLogger.fDefLogger.LogError(Ex,AMsg)
 end;
 
 procedure Log(Ex:Exception;const AFmtStr:string; const Args:array of const);
 begin
-  TSimpleLogger.DefLogger.LogErrorFmt(Ex,AFmtStr,Args)
+  TSimpleLogger.fDefLogger.LogErrorFmt(Ex,AFmtStr,Args)
 end;
 
 procedure sync(AProc:TThreadProcedure);
@@ -435,6 +436,11 @@ end;
 procedure TSimpleLogger.DefLog(const AMsg: string);
 begin
   Log(FDefaultPriority, AMsg)
+end;
+
+class function TSimpleLogger.DefLogger: ILogger;
+begin
+  result := fDefLogger
 end;
 
 procedure TSimpleLogger.DefLogFmt(const AFmtStr: string;

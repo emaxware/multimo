@@ -3,7 +3,9 @@ unit uCommandLineOptions;
 interface
 
 uses
-  System.SysUtils
+  System.Types
+  , System.SysUtils
+  , System.StrUtils
   , System.RegularExpressions
   , System.Generics.Collections
   ;
@@ -13,24 +15,24 @@ type
 
   TCmdOption = class;
   TCmdValue = class;
-  TCmdOptionSetting = (cosRequired,cosChild,cosIsFlag,cosIsFlagged,cosIsNotFlagged,cosHasDefaultValue);
+  TCmdOptionSetting = (cosRequired,cosCmd,cosIsFlagged,cosIsNotFlagged,cosHasDefaultValue);
   TCmdOptionSettings = set of TCmdOptionSetting;
   THelpFormatter = reference to procedure(const AFormattedOption:string);
   TMissingOptionHandler = reference to function(AOption:TCmdOption; var AValue:string; var Enable:Boolean):boolean;
   TCmdOptionClass = class of TCmdOption;
 
   TCmdOption = class
-  private
-    fOptDesc: string;
   protected
+    fOptDesc: string;
     fSettings: TCmdOptionSettings;
-    fOpt: char;
+    fOpt: string;
     fOptName: string;
     fDefFlag: boolean;
     fDefValue:string;
     fOptions:TObjectList<TCmdOption>;
     fParent:TCmdOption;
-    fProcessed:boolean;
+    fProcessed:integer;
+    fPendingSub:integer;
     class var
       fOptNameMatch, fOptValueMatch:TRegEx;
 //    class function OptGetName:TRegEx; virtual;
@@ -44,14 +46,18 @@ type
     procedure AfterConstruction; override;
 
     class function ConsoleOptionHandler:TMissingOptionHandler;
-    function Add(const AOptName:string; AOpt:Char; Options:TCmdOptionSettings; const ADefault, ADesc:string; AOptionClass:TCmdOptionClass):TCmdOption; overload; virtual;
-    function Add(const AOptName:string; AOpt:Char; Options:TCmdOptionSettings; const ADefault:string = ''; const ADesc:string = ''):TCmdOption; overload; virtual;
+
+    function Add(const AOptName:string; Options:TCmdOptionSettings; const ADefault:string = ''; const ADesc:string = ''; const AOpt:string = ''):TCmdOption; overload; virtual;
+
+    function Add(const AOptName:string; Options:TCmdOptionSettings; const ADefault,ADesc,AOpt:string; AOptionClass:TCmdOptionClass):TCmdOption; overload; virtual;
+    function BeginSubCmd(cnt:integer = -1):TCmdOption;
+    function EndSubCmd:TCmdOption;
 
     function ParseCommandLine(var AValues:TCmdValue; MissingOptionHandler:TMissingOptionHandler = nil):boolean; overload;
 
     property Settings:TCmdOptionSettings read fSettings;
     property OptName:string read fOptName;
-    property Opt:char read fOpt;
+    property Opt:string read fOpt;
     property OptDesc:string read fOptDesc;
     property DefValue:string read fDefValue;
     property DefFlag:boolean read fDefFlag;
@@ -81,25 +87,25 @@ type
   public
     destructor destroy; override;
 
+    function asArray(const delim:string = ','):TStringDynArray;
+
     property CmdOption:TCmdOption read fCmdOption;
-    property ValuesByName[AName:string]:TCmdValue read GetValueByName; default;
+    property Option[AName:string]:TCmdValue read GetValueByName; default;
     property Enabled[AName:string]:boolean read GetFlaggedByName;
     property Flagged:boolean read fFlagged;
     property Value:string read fValue;
-    property asInteger:integer read GetValueAsInteger;
     property Found:boolean read fFound;
+
+    property asInteger:integer read GetValueAsInteger;
+
   end;
 
 implementation
 
-uses
-  System.StrUtils
-  ;
-
 { TCmdOption }
 
-function TCmdOption.Add(const AOptName:string; AOpt: char;
-  Options: TCmdOptionSettings; const ADefault, ADesc:string; AOptionClass: TCmdOptionClass): TCmdOption;
+function TCmdOption.Add(const AOptName:string;
+  Options: TCmdOptionSettings; const ADefault, ADesc, AOpt:string; AOptionClass: TCmdOptionClass): TCmdOption;
 begin
   result := AOptionClass.create;
   result.fOptName := AOptname;
@@ -109,8 +115,8 @@ begin
   if ADefault <> '' then
     include(result.fSettings, cosHasDefaultValue);
   if ADesc = '' then
-    if fOptName='' then
-      Result.fOptDesc := Format('-%s option',[string(AOpt)])
+    if AOptName='' then
+      Result.fOptDesc := Format('-%s option',[AOpt])
     else
 //    if fOpt=' ' then
       Result.fOptDesc := Format('--%s option',[AOptName])
@@ -120,36 +126,56 @@ begin
     result.fDefFlag := True;
   if [cosIsFlagged,cosIsNotFlagged] * Options <> [] then
   begin
-    Include(Options, cosIsFlag);
+    Include(Options, cosCmd);
     Include(Options, cosHasDefaultValue);
   end;
-  if (cosChild in Options) then
-  begin
-    Result.fParent := self;
-    fOptions.Add(result)
-  end
-  else
+  // special root scenario
   if (fParent = nil) then
   begin
     Result.fParent := self;
     fOptions.Add(result)
   end
   else
+  // begin sub with cnt
+  if fParent.fPendingSub > 0 then
+  begin
+    dec(fParent.fPendingSub);
+    Result.fParent := self;
+    fOptions.Add(result);
+    // auto end sub
+    if fParent.fPendingSub=0 then
+      result := fParent
+  end
+  else
+  // begin sub with end sub
+  if fParent.fPendingSub = -1 then
+  begin
+    Result.fParent := self;
+    fOptions.Add(result)
+  end
+  else
+  // default
   begin
     Result.fParent := fParent;
     fParent.fOptions.Add(result)
   end;
 end;
 
-function TCmdOption.Add(const AOptName:string; AOpt:Char; Options: TCmdOptionSettings; const ADefault, ADesc:string): TCmdOption;
+function TCmdOption.Add(const AOptName:string; Options: TCmdOptionSettings; const ADefault, ADesc, AOpt:string): TCmdOption;
 begin
-  result := Add(AOptName, AOpt, Options, ADefault, ADesc, TCmdOption)
+  result := Add(AOptName, Options, ADefault, ADesc, AOpt, TCmdOption)
 end;
 
 procedure TCmdOption.AfterConstruction;
 begin
   inherited;
   fOptions := TObjectList<TCmdOption>.Create(True)
+end;
+
+function TCmdOption.BeginSubCmd(cnt: integer): TCmdOption;
+begin
+  fParent.fPendingSub := cnt;
+  result := self
 end;
 
 const
@@ -162,7 +188,7 @@ begin
     var resp:string;
     begin
       if cosHasDefaultValue in AOption.Settings then
-        if cosIsFlag in AOption.Settings then
+        if (cosCmd in AOption.Settings) and (AOption.DefValue = '') then
           Writeln(Format('Enable %s [--%s/-%s]? %s'#13#10'  [enter] "%s"'#13#10'  [y]es'#13#10'  [n]o'#13#10'  [s]kip',[
             AOption.OptDesc,
             AOption.OptName,
@@ -177,7 +203,7 @@ begin
             boolRequiredMap[cosRequired in AOption.Settings],
             AOption.DefValue]))
       else
-        if cosIsFlag in AOption.Settings then
+        if cosCmd in AOption.Settings then
           Writeln(Format('Enable %s [--%s/-%s]? %s'#13#10'  [y]es'#13#10'  [n]o'#13#10'  [s]kip',[
             AOption.OptDesc,
             AOption.OptName,
@@ -222,6 +248,12 @@ begin
   inherited;
 end;
 
+function TCmdOption.EndSubCmd: TCmdOption;
+begin
+  fParent.fParent.fPendingSub := 0;
+  result := fParent
+end;
+
 function TCmdOption.ParseCommandLine(var AValues:TCmdValue; MissingOptionHandler:TMissingOptionHandler = nil): boolean;
 var
   currPos:integer;
@@ -229,14 +261,22 @@ begin
   currPos := 1;
   AValues := TCmdValue.create;
   try
+    var cmdLine := '';
+{$IFDEF MSWINDOWS}
     var m := TRegEx.Match(
         string(CmdLine),
-        '^"[^"]+" (.+)$',
+        '^"[^"]+" +(.+)$',
         [TRegExOption.roMultiLine]
         );
-    var cmdLine := '';
     if m.Success then
       cmdLine := m.Groups[1].Value;
+{$ELSE}
+    for var I := 1 to ParamCount do
+      if i=1 then
+        cmdLine := ParamStr(i)
+      else
+        cmdLine := cmdLine + ' ' + ParamStr(i) + '';
+{$ENDIF}
     result := ParseCommandLine(cmdLine, AValues, currPos, MissingOptionHandler)
   except
     on e:CommandOptionError do
@@ -289,7 +329,13 @@ begin
       var found := false;
       for var opt in fOptions do
       begin
-        if (CompareText(opt.OptName, foundName) = 0) and not cmdOptionFound.Contains(opt) then
+        if
+          (
+            (CompareText(opt.OptName, foundName) = 0)
+            or
+            (CompareText(opt.Opt, foundName) = 0)
+          )
+          and not cmdOptionFound.Contains(opt) then
         begin
 //          opt.fProcessed := true;
           var optValue := TCmdValue.create;
@@ -300,7 +346,7 @@ begin
           cmdOptionFound.Add(opt);
           AValues.fValues.Add(optValue);
 
-          if cosIsFlag in opt.fSettings then
+          if cosCmd in opt.fSettings then
           begin
             Inc(AStartPos, optNameMatch.Length);
           end
@@ -332,25 +378,45 @@ begin
       begin
         var defFlag := opt.fdefflag;
         var defValue := opt.fDefValue;
-        var manualOverride := Assigned(MissingOptionHandler) and MissingOptionHandler(opt, defValue, defFlag);
+        var manualOverride :=
+          (
+            Assigned(MissingOptionHandler)
+            and MissingOptionHandler(opt, defValue, defFlag)
+          )
+//          or
+//          (
+//            (not assigned(MissingOptionHandler))
+//            and
+        ;
 
         if (not manualOverride)
           and
           (cosRequired in opt.fSettings) then
           raise CommandOptionError.CreateFmt('Error missing required option %s: %s',[opt.OptName, MidStr(ACommandLine,AStartPos,20)])
         else
+        if manualOverride then
         begin
           var optValue := TCmdValue.create;
           optValue.fCmdOption := opt;
           optValue.fParent := AValues;
-          if cosIsFlag in opt.fSettings then
-            optValue.fFlagged := defFlag
-          else
-            optValue.fValue := defValue;
+          if cosCmd in opt.fSettings then
+            optValue.fFlagged := defFlag or (defValue <> '');
+
+          optValue.fValue := defValue;
 
           AValues.fValues.Add(optValue);
 
-          if optValue.fFlagged and (opt.fOptions.Count > 0) then
+          if (opt.fOptions.Count > 0)
+            and (
+              (
+                (cosCmd in opt.fSettings)
+                and optValue.fFlagged)
+              or
+              (
+                not (cosCmd in opt.fSettings)
+                and (optValue.fValue <> '')
+              )
+          ) then
             opt.ParseCommandLine(ACommandLine, optValue, AStartPos, MissingOptionHandler);
         end
       end
@@ -374,6 +440,11 @@ end;
 
 { TCmdValue }
 
+function TCmdValue.asArray(const delim: string): TStringDynArray;
+begin
+  result := SplitString(fValue, delim)
+end;
+
 constructor TCmdValue.create;
 begin
   fValues := TObjectList<TCmdValue>.create(True)
@@ -387,9 +458,12 @@ end;
 
 function TCmdValue.GetFlaggedByName(AName: string): boolean;
 begin
-  var value := ValuesByName[AName];
-  if cosIsFlag in Value.fCmdOption.fSettings then
-    result := value.fFlagged
+  var value := Option[AName];
+  if assigned(value) then
+    if (cosCmd in Value.fCmdOption.fSettings) then
+      result := value.fFlagged
+    else
+      result := value.fValue <> ''
   else
     result := false
 end;

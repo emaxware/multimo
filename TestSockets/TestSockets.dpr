@@ -10,7 +10,8 @@ uses
   dProtocol in '..\lib\dProtocol.pas' {Proto: TDataModule},
   uLoggerLib in '..\lib\uLoggerLib.pas',
   uCommandLineOptions in '..\lib\uCommandLineOptions.pas',
-  uConsoleLogger in '..\lib\uConsoleLogger.pas';
+  uConsoleLogger in '..\lib\uConsoleLogger.pas',
+  uSendInput in '..\lib\uSendInput.pas';
 
 var
   opts:TCmdOptions;

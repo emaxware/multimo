@@ -3,57 +3,63 @@ unit dProtocol;
 interface
 
 uses
-  System.SysUtils
+  winapi.windows
+  , System.SysUtils
+  , System.Types
   , System.Classes
   , System.SyncObjs, IdCustomTCPServer, IdTCPServer, IdCmdTCPServer,
   IdTCPConnection, IdTCPClient, IdUDPClient, IdBaseComponent, IdComponent,
   IdUDPBase, IdUDPServer, IdContext, IdCommandHandlers, IdIOHandler,
-  IdSocketHandle, IdGlobal, IdCmdTCPClient, IdMappedPortTCP
+  IdSocketHandle, IdGlobal, IdCmdTCPClient, IdMappedPortTCP,
+  IdServerInterceptLogEvent, IdIntercept, IdServerInterceptLogBase
+  , uSendInput
+  , uCommandLineOptions, IdIPMCastServer, IdIPMCastBase, IdIPMCastClient
   ;
 
 type
   TProto = class(TDataModule)
     cmdTcpServer: TIdCmdTCPServer;
     _cmdTcpClient: TIdCmdTCPClient;
-    tcpClient: TIdTCPClient;
+    _tcpClient: TIdTCPClient;
+    hook1: TIdServerInterceptLogEvent;
+    con1: TIdConnectionIntercept;
+    IdIPMCastClient1: TIdIPMCastClient;
+    IdIPMCastServer1: TIdIPMCastServer;
+    procedure cmdTcpServerCommandHandlers1Command(ASender: TIdCommand);
     procedure cmdTcpServerExecute(AContext: TIdContext);
     procedure cmdTcpServerConnect(AContext: TIdContext);
     procedure IdTCPClient1Connected(Sender: TObject);
     procedure IdTCPClient1Disconnected(Sender: TObject);
     procedure cmdTcpServerDisconnect(AContext: TIdContext);
-    procedure cmdTcpServerCommandHandlers3Command(ASender: TIdCommand);
-    procedure tcpClientAfterBind(Sender: TObject);
+    procedure cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
+    procedure cmdTcpServerCommandHandlers2Command(ASender: TIdCommand);
+    procedure con1Receive(ASender: TIdConnectionIntercept; var ABuffer: TIdBytes);
+    procedure con1Send(ASender: TIdConnectionIntercept; var ABuffer: TIdBytes);
+    procedure hook1LogString(ASender: TIdServerInterceptLogEvent; const AText:
+        string);
+    procedure _tcpClientAfterBind(Sender: TObject);
+    procedure _tcpClientConnected(Sender: TObject);
   private
     class
       var FProto:TProto;
     { Private declarations }
 //    FCancel:TEvent;
 //    FConfigHandler, FMouseHandler, FTestHandler:TFunc<TIdTcpConnection,integer>;
-    procedure HandleCommand(ASender: TIdCommand; AHandler:TFunc<TIdTcpConnection,integer>);
   public
     { Public declarations }
     class function Instance:TProto;
 
-    procedure StartServer(ACancel:TEvent; APort:word);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
-    procedure AddCmdHandler(const ACommand:string;AHandler:TFunc<TIdTcpConnection,integer>);
-    procedure StartClient(const AServerIP:string; APort:word; ACancel:TEvent);
-    procedure SendEcho(const msg:string);//; writer:TFunc<TIdTCPConnection, integer>);
-    procedure Broadcast(const AMsg:string; APort:word);
+    procedure StartServer(ACancel:TEvent; AValues:TCmdValue);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
+    procedure StartClient(ACancel:TEvent; AValues:TCmdValue);
+    procedure SendEcho(AClient:TIdTcpClient; const msg:string);//; writer:TFunc<TIdTCPConnection, integer>);
+    procedure SendInput(AClient:TIdTcpClient; AInputs:TSendInputHelper);
 
     procedure Stop;
   end;
 
-  TCommandHandler = class
-  protected
-    FProto:TProto;
-    FCommand:string;
-    FHandler:TFunc<TIdTCPConnection, integer>;
-    procedure handler(ASender: TIdCommand);
-  public
-    constructor create(AProto:TProto;const ACommand:string;AHandler:TFunc<TIdTCPConnection, integer>);
+  TInputHelper = class helper for TSendInputHelper
+    procedure AddMouseMoves(moves:TStringDynArray);
   end;
-//var
-//  dmMain: TdmMain;
 
 implementation
 
@@ -63,11 +69,14 @@ uses
   IdReplyRFC
   , IdStack
   , uLoggerLib
+  , System.StrUtils
+  , System.RegularExpressions
+  , System.Generics.Collections
   ;
 
 {$R *.dfm}
 
-{ TdmMain }
+{ TProto }
 
 class function TProto.Instance: TProto;
 begin
@@ -76,44 +85,190 @@ begin
   result := FProto
 end;
 
-procedure TProto.AddCmdHandler(const ACommand: string;
-  AHandler: TFunc<TIdTcpConnection, integer>);
+procedure TProto.cmdTcpServerCommandHandlers1Command(ASender: TIdCommand);
 begin
-  TCommandHandler.create(self, ACommand, AHandler)
-end;
+  Log('%s %s received',[ASender.CommandHandler.Command, ASender.Params.Text]);
+  ASender.Reply.SetReply(200, 'OK');
+  ASender.SendReply;
 
-procedure TProto.Broadcast(const AMsg: string; APort:word);
-begin
-end;
-
-procedure TProto.HandleCommand(ASender:TIdCommand; AHandler:TFunc<TIdTcpConnection,integer>);
-begin
-  log(format('%s: %s',[ASender.CommandHandler.Command, 'OPENING..']));
-  var responseCode:integer := 404;
-  var responseText:string := 'DONE';
-  var connection := ASender.Context.Connection;
+  var inps := TSendInputHelper.Create;
   try
-    responseCode := AHandler(Connection);
-    var response := Connection.GetResponse(200);
-    log(format('%s: %s < %d %s',[ASender.CommandHandler.Command, 'RESPONSE', response, Connection.LastCmdResult.Text.Text]));
-  except
-    on e:exception do
+    with ASender.Context.Connection, IOHandler do
     begin
-      log(format('%s: !!%s %s',[ASender.CommandHandler.Command, e.classname, e.message]));
-      responseText := format('%s %s',[e.classname, e.message]);
+      var l:integer := Readint32;
+      log('read count = %d',[l]);
+      var s := sizeof(TInput);
+      for var i := 0 to l-1 do
+      begin
+        var inp:TInput;
+        var bytes:TIdBytes;
+        ReadBytes(bytes, s);
+        inp := PInput(@bytes[0])^;
+        inps.Add(inp);
+        log('read input %d (%x %d,%d %d %d)',[i, inp.Itype, inp.mi.dx, inp.mi.dy, inp.mi.time, length(bytes)]);
+      end;
     end;
+
+    inps.Flush;
+    log('input flushed')
+  finally
+    inps.free
   end;
-  ASender.Reply.SetReply(
-    responseCode
-    ,format('%s: %s',[ASender.CommandHandler.Command, responseText]));
-  log(format('%s: %s > %s',[ASender.CommandHandler.Command, 'REPLY', ASender.Reply.FormattedReply.Text]));
 end;
 
-procedure TProto.cmdTcpServerCommandHandlers3Command(ASender: TIdCommand);
+procedure TProto.cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
 begin
-  var msg := ASender.Context.Connection.IOHandler.ReadLn;
-  Log('%s %s',[ASender.CommandHandler.Command, msg]);
-  ASender.Context.Connection.IOHandler.WriteLn(Format('ECHOED %s',[msg]))
+  Log('%s %s received',[ASender.CommandHandler.Command, ASender.Params.Text]);
+  var msg :=
+      ReverseString(
+        StringsReplace(
+          ASender.Params.Text
+          , [#13#10,#13,#10]
+          , ['','','']
+          ));
+  ASender.Reply.SetReply(200, msg);
+  ASender.SendReply
+//  var strm := TStringStream.Create('this is a stream');
+//  ASender.Context.Connection.IOHandler.Write(strm, 0, true);
+//  strm.free
+end;
+
+procedure TProto.cmdTcpServerCommandHandlers2Command(ASender: TIdCommand);
+begin
+//  ASender.Context.Binding.IP
+end;
+
+procedure TProto.SendEcho(AClient:TIdTcpClient; const Msg:string);
+begin
+  var reply := AClient.SendCmd('ECHO hello', '');
+  writeln(AClient.LastCmdResult.Text.Text)
+
+//  var strm := TStringStream.Create;
+//  tcpClient.IOHandler.ReadStream(strm, -1, false);
+//  writeln(strm.DataString);
+//  strm.free
+//  writeln(tcpClient.LastCmdResult.FormattedReply.Text);
+end;
+
+procedure TProto.SendInput(AClient:TIdTcpClient; AInputs: TSendInputHelper);
+begin
+  var reply := AClient.SendCmd('INPUT', '');
+  writeln(AClient.LastCmdResult.Text.Text);
+
+  with AClient, IOHandler do
+  begin
+    Write(AInputs.Count);
+    log('write count = %d',[AInputs.Count]);
+    var i := 0;
+    for var inp in AInputs do
+    begin
+      var bytes := RawToBytes(inp, sizeof(inp));
+      log('write input #%d (%x %d,%d %d %d)',[i, inp.Itype, inp.mi.dx, inp.mi.dy, inp.mi.time, Length(bytes)]);
+      write(bytes);
+      inc(i)
+    end
+  end
+end;
+
+type
+  TListenerThread = class;
+
+  TListenerThreadProc = reference to procedure(AThread:TListenerThread);
+
+  TListenerThread = class(TThread)
+    fProc:TListenerThreadProc;
+    fClient:TidTcpClient;
+    procedure Execute; override;
+  public
+    constructor create(AProc:TListenerThreadProc; AClient:TIdTcpClient);
+
+    property Client:TidTcpClient read FClient;
+  end;
+
+procedure TProto.StartClient(ACancel: TEvent; AValues:TCmdValue);
+
+  function NewClient:TIdTCPClient;
+  begin
+    result := TIdTCPClient.Create();
+    with result do
+    begin
+      Host := AValues.Value;
+      Port := AValues['PORT'].asInteger;
+      Connect
+    end;
+//    TListenerThread.create()
+  end;
+
+begin
+  if AValues.Enabled['ECHO'] then
+  TListenerThread.create(
+    procedure(AThread:TListenerThread)
+    begin
+      SendEcho(AThread.Client, AValues.Option['ECHO'].value);
+    end,
+    NewClient);
+
+  if AValues.Enabled['SENDMOUSEMOVE'] then
+  TListenerThread.create(
+    procedure(AThread:TListenerThread)
+    begin
+      var inp := TSendInputHelper.Create;
+      try
+  //              inp.AddDelay(10000);
+        inp.AddMouseMoves(AValues.Option['SENDMOUSEMOVE'].asArray('|'));
+        SendInput(AThread.Client, inp)
+      finally
+        inp.free
+      end;
+    end,
+    NewClient);
+
+  if AValues.Enabled['LISTENMOUSEMOVE'] then
+  TListenerThread.create(
+    procedure(AThread:TListenerThread)
+    begin
+      var inp := TSendInputHelper.Create;
+      try
+  //              inp.AddDelay(10000);
+//        inp.AddMouseMoves(AValues.Option['SENDMOUSEMOVE'].asArray('|'));
+//        SendInput(AThread.Client, inp)
+      finally
+        inp.free
+      end;
+    end,
+    NewClient);
+end;
+
+procedure TProto.StartServer(ACancel: TEvent; AValues:TCmdValue);
+begin
+//  FCancel := ACancel;
+  var ips:TStrings;
+  TidStack.IncUsage;
+  try
+    ips := GStack.LocalAddresses
+  finally
+    TidStack.DecUsage
+  end;
+  for var _ip in ips do
+  with cmdTcpServer.Bindings.Add do
+  begin
+    IP := _ip;
+    Port := AValues['PORT'].asInteger;
+    log('Echo server starting on %s..',[ip])
+  end;
+
+  cmdTcpServer.DefaultPort := AValues['PORT'].asInteger;
+  cmdTcpServer.Active := true;
+//
+//  ACancel.WaitFor(INFINITE);
+//  cmdTcpServer.Active := false
+end;
+
+procedure TProto.Stop;
+begin
+  cmdTcpServer.Active := false;
+//  cmdTcpClient.Disconnect;
+//  tcpClient.Disconnect;
 end;
 
 procedure TProto.cmdTcpServerConnect(AContext: TIdContext);
@@ -131,6 +286,27 @@ begin
   log('cmdTcpServerExecute')
 end;
 
+procedure TProto.con1Receive(ASender: TIdConnectionIntercept; var ABuffer:
+    TIdBytes);
+begin
+  log('CLIENT RECV %s',[BytesToString(ABuffer)])
+end;
+
+procedure TProto.con1Send(ASender: TIdConnectionIntercept; var ABuffer:
+    TIdBytes);
+begin
+  log('CLIENT SEND %s',[BytesToString(ABuffer)])
+end;
+
+procedure TProto.hook1LogString(ASender: TIdServerInterceptLogEvent; const
+    AText: string);
+begin
+  if cmdTcpServer.Active then
+    log('SERVER %s',[AText])
+  else
+    log('CLIENT %s',[AText])
+end;
+
 procedure TProto.IdTCPClient1Connected(Sender: TObject);
 begin
   log('tcpclient connected..')
@@ -141,116 +317,51 @@ begin
   log('tcpclient disconnected..')
 end;
 
-procedure TProto.SendEcho(const Msg:string);//; writer: TFunc<TIdTCPConnection, integer>);
+procedure TProto._tcpClientAfterBind(Sender: TObject);
 begin
-  if not tcpClient.Connected then
-    tcpClient.Connect;
-  if not tcpClient.Connected then
-    raise Exception.create('Not connected!!');
-
-  tcpClient.SendCmd('ECHO');
-//  var context := TIdContext.Create(tcpClient, nil, nil);
-//  _cmdTcpClient.CommandHandlers.Items[3].DoCommand(Msg, context, '');
-//  cmdTcpClient.SendCmd('ECHO hello');
-//  cmdTcpClient.CommandHandlers.
-//  var connection := IdTCPClient1;
-//  var response := TIdReplyRFC.Create(nil);
-//  try
-//    log(format('%s: %s',[cmd,'writing cmd']));
-//    connection.IOHandler.writeln(Cmd);// SendCmd(Cmd, 200);
-//    try
-//      log(format('%s: %s',[cmd,'getting response']));
-//      var reply := IdTCPClient1.GetResponse(200);
-//      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
-//      writer(connection);
-//      log(format('%s: %s',[cmd,'writing message']));
-//      response.SetReply(200,cmd + ' OK');
-//    except
-//      on e:exception do
-//      begin
-//        log(format('%s: !!%s',[cmd,e.ClassName,e.message]));
-//        response.SetReply(404,format('%s: %s %s',[cmd,e.ClassName,e.message]));
-//      end;
-//    end;
-//  finally
-//    var finalResponse := response.FormattedReply;
-//    log(format('%s: %s > %s %s',[cmd,'REPLY',response.Code,finalResponse.Text]));
-//    connection.IOHandler.Write(finalResponse);
-//    try
-//      var reply := IdTCPClient1.GetResponse();
-//      log(format('%s: %s < %d %s',[cmd,'RESPONSE',reply,IdTCPClient1.LastCmdResult.FormattedReply.Text]));
-//    finally
-//      IdTCPClient1.Disconnect
-//    end;
-//  end;
+  log('tcpClientAfterBind');
 end;
 
-procedure TProto.StartClient(const AServerIP:string; APort:word; ACancel: TEvent);
+procedure TProto._tcpClientConnected(Sender: TObject);
 begin
-//  FCancel := ACancel;
-  with tcpClient do
-  begin
-    Host := AServerIP;
-    Port := APort;
-    Connect
-  end
-end;
-
-procedure TProto.StartServer(ACancel: TEvent; APort:word);
-begin
-//  FCancel := ACancel;
-  var ips:TStrings;
-  TidStack.IncUsage;
+  log('tcpClientConnected');
   try
-    ips := GStack.LocalAddresses
-  finally
-    TidStack.DecUsage
+    var msg :=
+      'ERROR';
+//      tcpClient.IOHandler.ReadLnWait(10);
+    log('tcpClientConnected %s',[msg]);
+  except
+    on e:exception do
+      log(e, 'tcpClientConnected')
   end;
-  for var _ip in ips do
-  with cmdTcpServer.Bindings.Add do
+end;
+
+{ TInputHelper }
+
+procedure TInputHelper.AddMouseMoves;
+begin
+  for var move in moves do
   begin
-    IP := _ip;
-    Port := APort;
-    log('Echo server starting on %s..',[ip])
-  end;
-
-  cmdTcpServer.DefaultPort := APort;
-  cmdTcpServer.Active := true;
-//
-//  ACancel.WaitFor(INFINITE);
-//  cmdTcpServer.Active := false
-end;
-
-procedure TProto.Stop;
-begin
-  cmdTcpServer.Active := false;
-//  cmdTcpClient.Disconnect;
-  tcpClient.Disconnect;
-end;
-
-procedure TProto.tcpClientAfterBind(Sender: TObject);
-begin
-
-end;
-
-{ TCommandHandler }
-
-constructor TCommandHandler.create(AProto: TProto; const ACommand: string;
-  AHandler: TFunc<TIdTCPConnection, integer>);
-begin
-  FProto := AProto;
-  FCommand := ACommand;
-  FHandler := AHandler;
-  with FProto.cmdTcpServer.CommandHandlers.Add do
-  begin
-    Command := ACommand;
-    OnCommand := self.handler;
+    var m := SplitString(move,',');
+    AddRelativeMouseMove(strtoint(m[0]),strtoint(m[1]));
+    AddDelay(1000);
   end;
 end;
 
-procedure TCommandHandler.handler(ASender: TIdCommand);
+{ TListenerThread }
+
+constructor TListenerThread.create;
 begin
-  FProto.HandleCommand(ASender, FHandler)
+  fProc := AProc;
+  fClient := AClient;
+//  fClient.
+  inherited create(false)
+end;
+
+procedure TListenerThread.Execute;
+begin
+//  fClient.ConnectTimeout :=
+  fProc(self)
 end;
 
 end.

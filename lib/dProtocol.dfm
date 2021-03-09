@@ -5,31 +5,46 @@ object Proto: TProto
   object cmdTcpServer: TIdCmdTCPServer
     Bindings = <>
     DefaultPort = 8111
+    Intercept = hook1
     OnConnect = cmdTcpServerConnect
     OnDisconnect = cmdTcpServerDisconnect
     OnExecute = cmdTcpServerExecute
     CommandHandlers = <
       item
         CmdDelimiter = ' '
-        Command = 'CONFIG'
+        Command = 'ECHO'
         Disconnect = False
         ExceptionReply.Code = ''
-        Name = 'CONFIG'
+        Name = 'ECHO'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
         ParseParams = True
         Tag = 0
+        OnCommand = cmdTcpServerCommandHandlers0Command
       end
       item
         CmdDelimiter = ' '
-        Command = 'MOUSE'
+        Command = 'INPUT'
         Disconnect = False
         ExceptionReply.Code = ''
-        Name = 'MOUSE'
+        Name = 'INPUT'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
         ParseParams = True
         Tag = 0
+        OnCommand = cmdTcpServerCommandHandlers1Command
+      end
+      item
+        CmdDelimiter = ' '
+        Command = 'SENDMOUSEMOVE'
+        Disconnect = False
+        ExceptionReply.Code = ''
+        Name = 'SENDMOUSEMOVE'
+        NormalReply.Code = '200'
+        ParamDelimiter = ' '
+        ParseParams = True
+        Tag = 0
+        OnCommand = cmdTcpServerCommandHandlers2Command
       end
       item
         CmdDelimiter = ' '
@@ -41,18 +56,7 @@ object Proto: TProto
         ParamDelimiter = ' '
         ParseParams = True
         Tag = 0
-      end
-      item
-        CmdDelimiter = ' '
-        Command = 'ECHO'
-        Disconnect = False
-        ExceptionReply.Code = ''
-        Name = 'ECHO'
-        NormalReply.Code = '200'
-        ParamDelimiter = ' '
-        ParseParams = True
-        Tag = 0
-        OnCommand = cmdTcpServerCommandHandlers3Command
+        OnCommand = cmdTcpServerCommandHandlers0Command
       end>
     ExceptionReply.Code = '500'
     ExceptionReply.Text.Strings = (
@@ -132,12 +136,39 @@ object Proto: TProto
     Left = 48
     Top = 96
   end
-  object tcpClient: TIdTCPClient
+  object _tcpClient: TIdTCPClient
+    Intercept = con1
+    OnConnected = _tcpClientConnected
     ConnectTimeout = 0
     Port = 0
-    ReadTimeout = -1
-    OnAfterBind = tcpClientAfterBind
+    ReadTimeout = 100
+    OnAfterBind = _tcpClientAfterBind
     Left = 48
     Top = 160
+  end
+  object hook1: TIdServerInterceptLogEvent
+    OnLogString = hook1LogString
+    Left = 112
+    Top = 32
+  end
+  object con1: TIdConnectionIntercept
+    OnReceive = con1Receive
+    OnSend = con1Send
+    Left = 112
+    Top = 160
+  end
+  object IdIPMCastClient1: TIdIPMCastClient
+    Bindings = <>
+    DefaultPort = 0
+    MulticastGroup = '224.0.0.1'
+    Left = 216
+    Top = 32
+  end
+  object IdIPMCastServer1: TIdIPMCastServer
+    BoundPort = 0
+    MulticastGroup = '224.0.0.1'
+    Port = 0
+    Left = 216
+    Top = 96
   end
 end
