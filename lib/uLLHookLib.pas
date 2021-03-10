@@ -56,12 +56,15 @@ type
     wparam:WPARAM;
     data:TLLMouseHookStruct;
     constructor Create(AParam:WPARAM; AData:TLLMouseHookStruct);
+    function ToString:string;
   end;
+  PLLMouseHookData = ^TLLMouseHookData;
 
   TLLKbdHookData = record
     wparam:WPARAM;
     data:TLLKbdHookStruct;
     constructor Create(AParam:WPARAM; AData:TLLKbdHookStruct);
+    function ToString:string;
   end;
 
   TCustomHookThread = class(TThread)
@@ -222,6 +225,7 @@ constructor TLLMouseHook.create;
 begin
   if fBuffer = nil then
   begin
+    fListeners := TThreadList<TOnMouseHookListener>.create;
     inherited create
   end
   else
@@ -259,34 +263,23 @@ begin
     with fListeners do
     try
       var list := LockList;
-      for var listener in list do
-      if listener <> nil then
-        listener(AMouseMsg);
+      var i:Integer;
+      for i := 0 to list.Count-1 do
+      begin
+        var listener := list[i];
+        if listener <> nil then
+        try
+          listener(AMouseMsg)
+        except
+          list[i] := nil
+        end
+      end
     finally
       UnlockList
     end;
 
-    var msgname := format('$%4X',[AMouseMsg.wparam]);
-    var msgdet := format('%d,%d',[AMouseMsg.data.pt.x, AMouseMsg.data.pt.Y]);
-    var msgdata := '';
-    case AMouseMsg.wparam of
-      WM_LBUTTONDBLCLK    : msgname := 'WM_LBUTTONDBLCLK';
-      WM_LBUTTONDOWN      : msgname := 'WM_LBUTTONDOWN';
-      WM_LBUTTONUP        : msgname := 'WM_LBUTTONUP';
-      WM_MBUTTONDBLCLK    : msgname := 'WM_MBUTTONDBLCLK';
-      WM_MBUTTONDOWN      : msgname := 'WM_MBUTTONDOWN';
-      WM_MBUTTONUP        : msgname := 'WM_MBUTTONUP';
-      WM_MOUSEHWHEEL      : msgname := 'WM_MOUSEHWHEEL';
-      WM_MOUSEMOVE        : msgname := 'WM_MOUSEMOVE';
-      WM_MOUSEWHEEL       : msgname := 'WM_MOUSEWHEEL';
-      WM_RBUTTONDBLCLK    : msgname := 'WM_RBUTTONDBLCLK';
-      WM_RBUTTONDOWN      : msgname := 'WM_RBUTTONDOWN';
-      WM_RBUTTONUP        : msgname := 'WM_RBUTTONUP';
-      WM_XBUTTONDBLCLK    : msgname := 'WM_XBUTTONDBLCLK';
-      WM_XBUTTONDOWN      : msgname := 'WM_XBUTTONDOWN';
-      WM_XBUTTONUP        : msgname := 'WM_XBUTTONUP';
-    end;
-    writeln(format('%s %s %s',[msgname, msgdet, msgdata]))
+    if AMouseMsg.wparam<>WM_MOUSEMOVE then
+      writeln(AMouseMsg.ToString)
   until false;
 end;
 
@@ -307,7 +300,6 @@ begin
   begin
     fBuffer := TThreadList<TLLMouseHookData>.Create;
     fBuffer.Duplicates := dupAccept;
-    fListeners := TThreadList<TOnMouseHookListener>.create;
     fThreadId  := threadid;
 //    fReady := TSimpleEvent.Create(false);
     AHandle := SetWindowsHookEx(WH_MOUSE_LL, @_LowLevelMouseProc, 0, 0);
@@ -341,6 +333,25 @@ begin
   data := AData
 end;
 
+function TLLKbdHookData.ToString: string;
+begin
+  var msgname := format('$%8.8X',[wparam]);
+  var msgdet := format('%8.8X %8.8X',[data.vkCode, data.scanCode]);
+  var msgdata := '';
+  case wparam of
+    WM_KEYDOWN            : msgname := 'WM_KEYDOWN';
+    WM_KEYUP              : msgname := 'WM_KEYUP';
+    WM_CHAR               : msgname := 'WM_CHAR';
+    WM_DEADCHAR           : msgname := 'WM_DEADCHAR';
+    WM_SYSKEYDOWN         : msgname := 'WM_SYSKEYDOWN';
+    WM_SYSKEYUP           : msgname := 'WM_SYSKEYUP';
+    WM_SYSCHAR            : msgname := 'WM_SYSCHAR';
+    WM_SYSDEADCHAR        : msgname := 'WM_SYSDEADCHAR';
+    WM_UNICHAR            : msgname := 'WM_UNICHAR';
+  end;
+  result := format('%s %s %s',[msgname, msgdet, msgdata])
+end;
+
 { TLLKbdHook }
 
 function _LowLevelKbdProc(code: Integer; wparam: WPARAM; lparam: LPARAM): LRESULT; stdcall;
@@ -362,6 +373,7 @@ begin
   end;
   result := 0// CallNextHookEx(TLLMouseHook.fHandle, code, wparam, lparam)
 end;
+
 function TLLKbdHook.AddListener(AListener: TOnKbdHookListener): integer;
 begin
 
@@ -400,21 +412,7 @@ begin
     finally
       UnlockList
     end;
-    var msgname := format('$%8.8X',[AMsg.wparam]);
-    var msgdet := format('%8.8X %8.8X',[AMsg.data.vkCode, AMsg.data.scanCode]);
-    var msgdata := '';
-    case AMsg.wparam of
-      WM_KEYDOWN            : msgname := 'WM_KEYDOWN';
-      WM_KEYUP              : msgname := 'WM_KEYUP';
-      WM_CHAR               : msgname := 'WM_CHAR';
-      WM_DEADCHAR           : msgname := 'WM_DEADCHAR';
-      WM_SYSKEYDOWN         : msgname := 'WM_SYSKEYDOWN';
-      WM_SYSKEYUP           : msgname := 'WM_SYSKEYUP';
-      WM_SYSCHAR            : msgname := 'WM_SYSCHAR';
-      WM_SYSDEADCHAR        : msgname := 'WM_SYSDEADCHAR';
-      WM_UNICHAR            : msgname := 'WM_UNICHAR';
-    end;
-    writeln(format('%s %s %s',[msgname, msgdet, msgdata]))
+    writeln(AMsg.ToString)
   until false;
 end;
 
@@ -447,6 +445,31 @@ begin
     UnlockList
   end;
   freeandnil(fBuffer)
+end;
+
+function TLLMouseHookData.ToString: string;
+begin
+  var msgname := format('$%4X',[wparam]);
+  var msgdet := format('%d,%d',[data.pt.x, data.pt.Y]);
+  var msgdata := '';
+  case wparam of
+    WM_LBUTTONDBLCLK    : msgname := 'WM_LBUTTONDBLCLK';
+    WM_LBUTTONDOWN      : msgname := 'WM_LBUTTONDOWN';
+    WM_LBUTTONUP        : msgname := 'WM_LBUTTONUP';
+    WM_MBUTTONDBLCLK    : msgname := 'WM_MBUTTONDBLCLK';
+    WM_MBUTTONDOWN      : msgname := 'WM_MBUTTONDOWN';
+    WM_MBUTTONUP        : msgname := 'WM_MBUTTONUP';
+    WM_MOUSEHWHEEL      : msgname := 'WM_MOUSEHWHEEL';
+    WM_MOUSEMOVE        : msgname := 'WM_MOUSEMOVE';
+    WM_MOUSEWHEEL       : msgname := 'WM_MOUSEWHEEL';
+    WM_RBUTTONDBLCLK    : msgname := 'WM_RBUTTONDBLCLK';
+    WM_RBUTTONDOWN      : msgname := 'WM_RBUTTONDOWN';
+    WM_RBUTTONUP        : msgname := 'WM_RBUTTONUP';
+    WM_XBUTTONDBLCLK    : msgname := 'WM_XBUTTONDBLCLK';
+    WM_XBUTTONDOWN      : msgname := 'WM_XBUTTONDOWN';
+    WM_XBUTTONUP        : msgname := 'WM_XBUTTONUP';
+  end;
+  result := format('%s %s %s',[msgname, msgdet, msgdata])
 end;
 
 end.

@@ -37,10 +37,10 @@ begin
         .Add('KEYBD',[cosCmd])
         .EndSubCmd
       .Add('SERVER', [], '8989')
-  //      .Add('PORT','p', [cosSubCmd,cosRequired], '8989', 'Protocol Port')
-        .BeginSubCmd
-        .Add('SENDMOUSEMOVE', [], '15,0|-15,15|-15,-15|15,-15|15,15')
-        .EndSubCmd
+//        .BeginSubCmd
+//        .Add('PORT',[cosRequired], '8989')
+//        .Add('SENDMOUSEMOVE', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+//        .EndSubCmd
       .Add('CLIENT', [cosCmd])
         .BeginSubCmd
         .Add('PORT', [cosRequired], '8989', 'Protocol Port')
@@ -58,22 +58,7 @@ begin
       try
         if vals.Enabled['HOOK'] then
         begin
-          with TLLMouseHook.create do
-          begin
-//            var kbdHook := TLLKbdHook.create;
-//            readln;
-//            terminate;
-//            kbdHook.Terminate
-          end;
-
-//          StartLLMouseHook(function(code:integer; wparam:WPARAM; var llMouse:TLLMouseHookStruct):boolean
-//            begin
-//              result := true;
-//              writeln(format('%d,%d',[
-//                llMouse.pt.x,
-//                llMouse.pt.y
-//                ]));
-//            end);
+          TLLMouseHook.Instance.Start
         end;
 
         if vals.Enabled['SERVER'] then

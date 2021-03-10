@@ -360,7 +360,7 @@ begin
             raise CommandOptionError.CreateFmt('Error parsing option value: %s',[MidStr(ACommandLine,AStartPos + optNameMatch.Length,20)]);
           found := true;
 
-          if optValue.fFlagged and (opt.fOptions.Count > 0) then
+          if (optValue.fFlagged or (optValue.Value <> '')) and (opt.fOptions.Count > 0) then
             opt.ParseCommandLine(ACommandLine, optValue, AStartPos, MissingOptionHandler);
 
           break

@@ -6,21 +6,18 @@ uses
   System.SysUtils,
   System.Classes,
   System.UITypes,
-  Vcl.Controls,
+//  Vcl.Controls,
   Vcl.Forms,
   Generics.Collections,
   Winapi.Windows;
-
 type
   TInputArray = array of TInput;
-
   // Local ShiftState type, which is compatible with the same named in the Classes unit.
   TSIHShiftState = set of (
     ssShift = Ord(System.Classes.ssShift),
     ssAlt = Ord(System.Classes.ssAlt),
     ssCtrl = Ord(System.Classes.ssCtrl),
     ssWin = 32);
-
   TSendInputHelper = class(TList<TInput>)
   protected
     class function MergeInputs(InputsBatch: array of TInputArray): TInputArray;
@@ -33,14 +30,11 @@ type
     class function GetText(SendText: string; AppendReturn: Boolean): TInputArray;
     class function GetShortCut(ShiftState: TSIHShiftState; ShortChar: Char): TInputArray; overload;
     class function GetShortCut(ShiftState: TSIHShiftState; ShortVK: Word): TInputArray; overload;
-
     class function GetMouseInput(X, Y: Integer; MouseData, Flags, Time: DWORD): TInput;
     class function GetMouseClick(MouseButton: TMouseButton; Press, Release: Boolean): TInputArray;
     class function GetRelativeMouseMove(DeltaX, DeltaY: Integer): TInputArray;
     class function GetAbsoluteMouseMove(X, Y: Integer; DesktopCoordinates: Boolean): TInputArray;
-
     class function IsVirtualKeyPressed(VirtualKey: Word): Boolean;
-
     procedure AddKeyboardInput(VirtualKey, ScanCode: Word; Flags, Time: Cardinal);
     procedure AddVirtualKey(VirtualKey: Word; Press: Boolean = True; Release: Boolean = True);
     procedure AddShift(ShiftState: TSIHShiftState; Press, Release: Boolean);
@@ -48,22 +42,22 @@ type
     procedure AddText(SendText: string; AppendReturn: Boolean = False);
     procedure AddShortCut(ShiftState: TSIHShiftState; ShortChar: Char); overload;
     procedure AddShortCut(ShiftState: TSIHShiftState; ShortVK: Word); overload;
-
     procedure AddMouseClick(MouseButton: TMouseButton; Press: Boolean = True; Release: Boolean = True);
     procedure AddRelativeMouseMove(DeltaX, DeltaY: Integer);
     procedure AddAbsoluteMouseMove(X, Y: Integer; DesktopCoordinates: Boolean = True);
-
     procedure AddDelay(Milliseconds: Cardinal);
-
     function GetInputArray: TInputArray;
     procedure Flush;
+  end;
+
+  TInputHelper = record helper for TInput
+    function ToString:string;
   end;
 
   // Declaration in Windows.pas (until Delphi 2010) is corrupted, this one is correct:
   function SendInput(cInputs: Cardinal; pInputs: TInputArray; cbSize: Integer): Cardinal; stdcall;
 
 implementation
-
 const
   {**
    * This constant is used as a fake input type for a delay
@@ -76,11 +70,8 @@ const
    * Missing constant in Windows.pas until D2010
    *}
   KEYEVENTF_UNICODE = 4;
-
 function SendInput; external user32 name 'SendInput';
-
 {** TSendInputHelper **}
-
 {**
  * Add inputs, that are required to produce the passed char
  *
@@ -94,8 +85,7 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
-procedure TSendInputHelper.AddMouseClick(MouseButton: TMouseButton; Press, Release: Boolean);
+procedure TSendInputHelper.AddMouseClick;//(MouseButton: TMouseButton; Press, Release: Boolean);
 var
   Inputs: TInputArray;
 begin
@@ -103,7 +93,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 procedure TSendInputHelper.AddRelativeMouseMove(DeltaX, DeltaY: Integer);
 var
   Inputs: TInputArray;
@@ -112,7 +101,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 procedure TSendInputHelper.AddAbsoluteMouseMove(X, Y: Integer; DesktopCoordinates: Boolean);
 var
   Inputs: TInputArray;
@@ -121,7 +109,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 {**
  * Add a delay for passed milliseconds
  *
@@ -138,7 +125,6 @@ begin
   DelayInput.ki.time := Milliseconds;
   Add(DelayInput);
 end;
-
 {**
  * Add a single keyboard input
  *
@@ -148,7 +134,6 @@ procedure TSendInputHelper.AddKeyboardInput(VirtualKey, ScanCode: Word; Flags, T
 begin
   Add(GetKeyboardInput(VirtualKey, ScanCode, Flags, Time));
 end;
-
 {**
  * Add combined "Shift" keys input, this are Ctrl, Alt, Win or the Shift key
  *
@@ -162,7 +147,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 {**
  * Add required keyboard inputs, to produce a regular keyboard short cut
  *
@@ -176,7 +160,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 procedure TSendInputHelper.AddShortCut(ShiftState: TSIHShiftState; ShortChar: Char);
 var
   Inputs: TInputArray;
@@ -185,7 +168,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 {**
  * Add keyboard strokes, to produce the passed string
  *
@@ -199,7 +181,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 {**
  * Add (optional) a press or release keyboard input for the passed VirtualKey
  *
@@ -213,7 +194,6 @@ begin
   if Assigned(Inputs) then
     AddRange(Inputs);
 end;
-
 {**
  * Flushes all added inputs to SendInput
  *
@@ -227,12 +207,10 @@ var
   Input: TInput;
   Inputs: TInputArray;
   InputsCount: Integer;
-
   procedure LocalSendInput;
   begin
     SendInput(InputsCount, Inputs, SizeOf(TInput));
   end;
-
 begin
   if Count = 0 then
     Exit;
@@ -244,7 +222,6 @@ begin
     InsertRange(0, GetVirtualKey(VK_CAPITAL, True, True));
     AddVirtualKey(VK_CAPITAL, True, True);
   end;
-
   InputsCount := 0;
   SetLength(Inputs, Count);
   for Input in Self do
@@ -262,23 +239,19 @@ begin
   LocalSendInput;
   Clear;
 end;
-
 class function TSendInputHelper.GetUnicodeChar(SendChar: Char; Press, Release: Boolean): TInputArray;
 var
   KeyDown, KeyUp: TInput;
 begin
   if not (Press or Release) then
     Exit(nil);
-
   KeyDown.Itype := INPUT_KEYBOARD;
   KeyDown.ki.wVk := 0;
   KeyDown.ki.wScan := Word(SendChar);
   KeyDown.ki.dwFlags := KEYEVENTF_UNICODE;
   KeyDown.ki.time := 0;
   KeyDown.ki.dwExtraInfo := GetMessageExtraInfo;
-
   SetLength(Result, Ord(Press) + Ord(Release));
-
   if Press then
     Result[0] := KeyDown;
   if Release then
@@ -288,7 +261,6 @@ begin
     Result[Ord(Press)] := KeyUp;
   end;
 end;
-
 {**
  * Return a TInputArray with keyboard inputs, that are required to produce the passed char.
  *}
@@ -305,7 +277,6 @@ begin
     Result := GetUnicodeChar(SendChar, Press, Release);
     Exit;
   end;
-
   ScanCode := VkKeyScan(SendChar);
   PreShifts := nil;
   Chars := nil;
@@ -320,7 +291,6 @@ begin
   // Alt
   if (ScanCode and $400) <> 0 then
     Include(ShiftState, ssAlt);
-
   Chars := GetVirtualKey(ScanCode, Press, Release);
   if Press then
   begin
@@ -329,7 +299,6 @@ begin
   end;
   Result := MergeInputs([PreShifts, Chars, AppShifts]);
 end;
-
 {**
  * Return a TInputArray with all previously added inputs
  *
@@ -352,7 +321,6 @@ begin
     Inc(cc);
   end;
 end;
-
 {**
  * Return a single keyboard input entry
  *}
@@ -365,7 +333,6 @@ begin
   Result.ki.dwFlags := Flags;
   Result.ki.time := Time;
 end;
-
 {**
  * Return combined TInputArray with "shift" keys input, this are Ctrl, Alt, Win or the Shift key
  *}
@@ -378,25 +345,20 @@ begin
     Shifts := GetVirtualKey(VK_SHIFT, Press, Release)
   else
     Shifts := nil;
-
   if ssCtrl in ShiftState then
     Ctrls := GetVirtualKey(VK_CONTROL, Press, Release)
   else
     Ctrls := nil;
-
   if ssAlt in ShiftState then
     Alts := GetVirtualKey(VK_MENU, Press, Release)
   else
     Alts := nil;
-
   if ssWin in ShiftState then
     Wins := GetVirtualKey(VK_LWIN, Press, Release)
   else
     Wins := nil;
-
   Result := MergeInputs([Ctrls, Alts, Wins, Shifts]);
 end;
-
 {**
  * Return required keyboard inputs in a TInputArray, to produce a regular keyboard short cut
  *}
@@ -409,7 +371,6 @@ begin
   AppShifts := GetShift(ShiftState, False, True);
   Result := MergeInputs([PreShifts, Chars, AppShifts]);
 end;
-
 class function TSendInputHelper.GetShortCut(ShiftState: TSIHShiftState; ShortVK: Word): TInputArray;
 var
   PreShifts, VKs, AppShifts: TInputArray;
@@ -419,7 +380,6 @@ begin
   AppShifts := GetShift(ShiftState, False, True);
   Result := MergeInputs([PreShifts, VKs, AppShifts]);
 end;
-
 class function TSendInputHelper.GetMouseInput(X, Y: Integer; MouseData, Flags, Time: DWORD): TInput;
 begin
   Result.Itype := INPUT_MOUSE;
@@ -429,10 +389,8 @@ begin
   Result.mi.dwFlags := Flags;
   Result.mi.time := Time;
 end;
-
 class function TSendInputHelper.GetMouseClick(MouseButton: TMouseButton;
   Press, Release: Boolean): TInputArray;
-
   function PressFlags: Cardinal;
   begin
     case MouseButton of
@@ -446,7 +404,6 @@ class function TSendInputHelper.GetMouseClick(MouseButton: TMouseButton;
       Result := 0;
     end;
   end;
-
   function ReleaseFlags: Cardinal;
   begin
     case MouseButton of
@@ -460,7 +417,6 @@ class function TSendInputHelper.GetMouseClick(MouseButton: TMouseButton;
       Result := 0;
     end;
   end;
-
 begin
   if not (Press or Release) then
     Exit(nil);
@@ -470,24 +426,20 @@ begin
   if Release then
     Result[Ord(Press)] := GetMouseInput(0, 0, 0, ReleaseFlags, 0);
 end;
-
 class function TSendInputHelper.GetRelativeMouseMove(DeltaX, DeltaY: Integer): TInputArray;
 begin
   SetLength(Result, 1);
   Result[0] := GetMouseInput(DeltaX, DeltaY, 0, MOUSEEVENTF_MOVE, 0);
 end;
-
 class function TSendInputHelper.GetAbsoluteMouseMove(X, Y: Integer;
   DesktopCoordinates: Boolean): TInputArray;
 const
   MOUSEEVENTF_VIRTUALDESK = $4000;
   COORDINATE_MAX = $FFFF;
-
   function NormalizeDimension(Value, RefValue: Integer): Integer;
   begin
     Result := Round(Value * (COORDINATE_MAX / RefValue));
   end;
-
 var
   Flags: Cardinal;
   RefSize: TSize;
@@ -495,28 +447,23 @@ var
 begin
   SetLength(Result, 1);
   Flags := MOUSEEVENTF_MOVE or MOUSEEVENTF_ABSOLUTE;
-
   if DesktopCoordinates then
   begin
     DesktopRect := Screen.DesktopRect;
     RefSize := DesktopRect.Size;
-
     // Offset the origin to get the virtual screen coordinates
     // This is only in multi monitor setups required.
     if DesktopRect.Left <> 0 then
       X := X - DesktopRect.Left;
     if DesktopRect.Top <> 0 then
       Y := Y - DesktopRect.Top;
-
     Flags := Flags or MOUSEEVENTF_VIRTUALDESK
   end
   else
     RefSize := Screen.PrimaryMonitor.BoundsRect.Size;
-
   Result[0] := GetMouseInput(
     NormalizeDimension(X, RefSize.cx), NormalizeDimension(Y, RefSize.cy), 0, Flags, 0);
 end;
-
 {**
  * Return a TInputArray with keyboard inputs, to produce the passed string
  *
@@ -532,7 +479,6 @@ begin
   if Assigned(Result) and AppendReturn then
     Result := MergeInputs([Result, GetVirtualKey(VK_RETURN, True, True)]);
 end;
-
 {**
  * Return a TInputArray that contains entries for a press or release for the passed VirtualKey
  *
@@ -549,7 +495,6 @@ begin
   if Release then
     Result[Ord(Press)] := GetKeyboardInput(VirtualKey, 0, KEYEVENTF_KEYUP, 0);
 end;
-
 {**
  * Determine, whether at the time of call, the passed key is pressed or not
  *}
@@ -557,7 +502,6 @@ class function TSendInputHelper.IsVirtualKeyPressed(VirtualKey: Word): Boolean;
 begin
   Result := (GetAsyncKeyState(VirtualKey) and $8000 shr 15) = 1;
 end;
-
 {**
  * Merges several TInputArray's into one and return it
  *
@@ -587,6 +531,34 @@ begin
     begin
       Result[Index] := Inputs[ccc];
       Inc(Index);
+    end;
+  end;
+end;
+
+{ TInputHelper }
+
+function TInputHelper.ToString: string;
+begin
+  case Itype of
+    INPUT_MOUSE:
+    begin
+      result := 'INPUT_MOUSE';
+      result := format('%s dx:%d,dy:%d mouseData:$%8.8x dwFlags:$%8.8x time:$%8.8x',[result, mi.dx, mi.dy, mi.mouseData, mi.dwFlags, mi.time]);
+    end;
+    INPUT_KEYBOARD:
+    begin
+      result := 'INPUT_KEYBOARD';
+      result := format('%s virtKey:$%8.8x scanCode:$%8.8x dwFlags:$%8.8x time:$%8.8x',[result, ki.wVk, ki.wScan, mi.dwFlags, mi.time]);
+    end;
+    INPUT_HARDWARE:
+    begin
+      result := 'INPUT_HARDWARE';
+      result := format('%s msg:$%8.8x wParamL:$%8.8x wParamH:$%8.8x',[result, hi.uMsg, hi.wParamL, hi.wParamH]);
+    end;
+    INPUT_DELAY:
+    begin
+      result := 'INPUT_DELAY';
+      result := format('%s timeMS:%d',[result, ki.time]);
     end;
   end;
 end;
