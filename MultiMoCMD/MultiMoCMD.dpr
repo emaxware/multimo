@@ -39,17 +39,17 @@ begin
       .Add('SERVER', [], '8989')
 //        .BeginSubCmd
 //        .Add('PORT',[cosRequired], '8989')
-//        .Add('SENDMOUSEMOVE', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+//        .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
 //        .EndSubCmd
       .Add('CLIENT', [cosCmd])
         .BeginSubCmd
         .Add('PORT', [cosRequired], '8989', 'Protocol Port')
         .Add('HOST', [cosRequired])
         .Add('ECHO', [], 'Hello')
-        .Add('LISTENMOUSEMOVE', [cosCmd])
-        .Add('SENDMOUSEMOVE', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+        .Add('LISTENINPUT', [cosCmd])
+        .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
         .EndSubCmd
-      .Add('MOUSEMOVE', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+      .Add('INPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
       ;
 
     try

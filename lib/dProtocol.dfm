@@ -27,7 +27,7 @@ object Proto: TProto
         Command = 'INPUT'
         Disconnect = False
         ExceptionReply.Code = ''
-        Name = 'INPUT'
+        Name = 'Receive INPUT'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
         ParseParams = True
@@ -36,10 +36,10 @@ object Proto: TProto
       end
       item
         CmdDelimiter = ' '
-        Command = 'SENDMOUSEMOVE'
+        Command = 'SENDINPUT'
         Disconnect = False
         ExceptionReply.Code = ''
-        Name = 'SENDMOUSEMOVE'
+        Name = 'SEND INPUT STREAM'
         NormalReply.Code = '200'
         ParamDelimiter = ' '
         ParseParams = True

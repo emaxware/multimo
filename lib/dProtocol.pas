@@ -17,22 +17,29 @@ uses
   ;
 
 type
+  TInputSender = reference to procedure;
+
   TProto = class(TDataModule)
     cmdTcpServer: TIdCmdTCPServer;
     _tcpClient: TIdTCPClient;
     hook1: TIdServerInterceptLogEvent;
     con1: TIdConnectionIntercept;
+    procedure cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
     procedure cmdTcpServerCommandHandlers1Command(ASender: TIdCommand);
+    procedure cmdTcpServerCommandHandlers2Command(ASender: TIdCommand);
+
     procedure cmdTcpServerExecute(AContext: TIdContext);
     procedure cmdTcpServerConnect(AContext: TIdContext);
+    procedure cmdTcpServerDisconnect(AContext: TIdContext);
+
     procedure IdTCPClient1Connected(Sender: TObject);
     procedure IdTCPClient1Disconnected(Sender: TObject);
-    procedure cmdTcpServerDisconnect(AContext: TIdContext);
-    procedure cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
-    procedure cmdTcpServerCommandHandlers2Command(ASender: TIdCommand);
+
     procedure con1Receive(ASender: TIdConnectionIntercept; var ABuffer: TIdBytes);
     procedure con1Send(ASender: TIdConnectionIntercept; var ABuffer: TIdBytes);
+
     procedure hook1LogString(ASender: TIdServerInterceptLogEvent; const AText:string);
+
     procedure _tcpClientAfterBind(Sender: TObject);
     procedure _tcpClientConnected(Sender: TObject);
   private
@@ -41,11 +48,12 @@ type
     { Private declarations }
 //    FCancel:TEvent;
 //    FConfigHandler, FMouseHandler, FTestHandler:TFunc<TIdTcpConnection,integer>;
+    fInputSender:TInputSender;
   public
     { Public declarations }
     class function Instance:TProto;
 
-    procedure StartServer(ACancel:TEvent; AValues:TCmdValue);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
+    procedure StartServer(ACancel:TEvent; AValues:TCmdValue; AInputSender:TInputSender);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
 
     procedure StartClient(ACancel:TEvent; AValues:TCmdValue);
     procedure SendEcho(AClient:TIdTcpClient; const msg:string);//; writer:TFunc<TIdTCPConnection, integer>);
@@ -179,13 +187,7 @@ end;
 procedure TProto.cmdTcpServerCommandHandlers2Command(ASender: TIdCommand);
 begin
   Log('%s %s received',[ASender.CommandHandler.Command, ASender.Params.Text]);
-  var msg :=
-      ReverseString(
-        StringsReplace(
-          ASender.Params.Text
-          , [#13#10,#13,#10]
-          , ['','','']
-          ));
+  var msg := 'OK';
   ASender.Reply.SetReply(200, msg);
   ASender.SendReply;
 
@@ -197,13 +199,13 @@ begin
       io.WriteLn('>>');
       io.Write(RawToBytes(AHookData, size), size);
       io.WriteLn('sent');
-      writeln('SERVER SENDMOUSEMOVE sent hookdata');
+      writeln('SERVER SENDINPUT sent hookdata');
     end);
 
   try
     repeat
       msg := io.ReadLn;
-      writeln('SERVER SENDMOUSEMOVE', msg);
+      writeln('SERVER SENDINPUT', msg);
     until msg <> 'rcvd';
   finally
     TLLMouseHook.Instance.RemoveListener(i)
@@ -213,7 +215,7 @@ end;
 procedure TProto.SendListenMouse(AClient: TIdTcpClient);
 begin
   try
-    var reply := AClient.SendCmd('SENDMOUSEMOVE', '');
+    var reply := AClient.SendCmd('SENDINPUT', '');
     writeln(AClient.LastCmdResult.Text.Text);
 
     var inps := TSendInputHelper.Create;
@@ -226,15 +228,15 @@ begin
       var bytes:TIdBytes;
       repeat
 
-        WriteLn('CLIENT SENDMOUSEMOVE ',msg);
+        WriteLn('CLIENT SENDINPUT ',msg);
         msg := io.ReadLn;
-        WriteLn('CLIENT SENDMOUSEMOVE ',msg);
+        WriteLn('CLIENT SENDINPUT ',msg);
         if msg <> '>>' then
           raise Exception.Create('Unexpected response');
 
         io.ReadBytes(bytes, Size, false);
         msg := io.ReadLn;
-        WriteLn('CLIENT SENDMOUSEMOVE ',msg);
+        WriteLn('CLIENT SENDINPUT ',msg);
         if msg <> 'sent' then
           raise Exception.Create('Unexpected response');
 
@@ -243,14 +245,14 @@ begin
   //            WM_LBUTTONDOWN:
           WM_LBUTTONUP:
           begin
-            WriteLn('CLIENT SENDMOUSEMOVE WM_LBUTTONUP');
+            WriteLn('CLIENT SENDINPUT WM_LBUTTONUP');
             inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
             inps.AddMouseClick(TMouseButton.mbLeft);
             inps.Flush
           end;
           WM_MOUSEMOVE:
           begin
-            WriteLn('CLIENT SENDMOUSEMOVE WM_MOUSEMOVE');
+            WriteLn('CLIENT SENDINPUT WM_MOUSEMOVE');
             inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
             inps.Flush
           end;
@@ -333,13 +335,13 @@ begin
     end,
     newClient);
 
-  if AValues.Enabled['SENDMOUSEMOVE'] then
+  if AValues.Enabled['SENDINPUT'] then
   TListenerThread.create(
     procedure(AThread:TListenerThread)
     begin
       var inp := TSendInputHelper.Create;
       try
-        inp.AddMouseMoves(AValues.Option['SENDMOUSEMOVE'].asArray('|'));
+        inp.AddMouseMoves(AValues.Option['SENDINPUT'].asArray('|'));
         SendInput(AThread.Client, inp)
       finally
         inp.free
@@ -356,7 +358,7 @@ begin
     newClient);
 end;
 
-procedure TProto.StartServer(ACancel: TEvent; AValues:TCmdValue);
+procedure TProto.StartServer;
 begin
   var ips:TStrings;
   TidStack.IncUsage;
@@ -373,6 +375,7 @@ begin
     log('Echo server starting on %s..',[ip])
   end;
 
+  fInputSender := AInputSender;
   cmdTcpServer.DefaultPort := AValues.asInteger;
   cmdTcpServer.Active := true;
 end;
