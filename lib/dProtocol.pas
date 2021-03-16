@@ -17,7 +17,10 @@ uses
   ;
 
 type
-  TInputSender = reference to procedure;
+  TCmdHandler = reference to procedure(AIOHandler:TIdIOHandler);
+  TInputSender = reference to procedure(AIOHandler:TIdIOHandler);
+  TListenerThread = class;
+  TListenerThreadProc = reference to procedure(AThread:TListenerThread);
 
   TProto = class(TDataModule)
     cmdTcpServer: TIdCmdTCPServer;
@@ -53,19 +56,43 @@ type
     { Public declarations }
     class function Instance:TProto;
 
-    procedure StartServer(ACancel:TEvent; AValues:TCmdValue; AInputSender:TInputSender);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
+    procedure StartServer(ACancel:TEvent; AValues:TCmdValue
+      ; AInputSender:TInputSender);//;ConfigHandler,MouseHandler,TestHandler:TFunc<TIdTcpConnection,integer>);
 
     procedure StartClient(ACancel:TEvent; AValues:TCmdValue);
     procedure SendEcho(AClient:TIdTcpClient; const msg:string);//; writer:TFunc<TIdTCPConnection, integer>);
     procedure SendInput(AClient:TIdTcpClient; AInputs:TSendInputHelper);
     procedure SendListenMouse(AClient:TIdTcpClient);//; writer:TFunc<TIdTCPConnection, integer>);
 
+    function AddServerCmd(const ACmdName:string; ACmdHandler:TCmdHandler):TIdCommandHandler;
+    function AddClientListener(const ACmdName:string; APort:integer; const AHostname:string; AListenerHandler:TListenerThreadProc):TListenerThread;
 
     procedure Stop;
   end;
 
   TInputHelper = class helper for TSendInputHelper
     procedure AddMouseMoves(moves:TStringDynArray);
+  end;
+
+  TCmdHandlerHelper = class(TInterfacedObject)
+  protected
+    fCmdHandler:TCmdHandler;
+    constructor create(ACmdHandler:TCmdHandler);
+  public
+    procedure OnCommand(ASender: TIdCommand);
+  end;
+
+  TNewClientProc = TFunc<Tidtcpclient>;
+
+  TListenerThread = class(TThread)
+    fProc:TListenerThreadProc;
+    fNewClient:TFunc<Tidtcpclient>;
+    fClient:TidTcpClient;
+    procedure Execute; override;
+  public
+    constructor create(AProc:TListenerThreadProc; ANewClient:TFunc<Tidtcpclient>);
+
+    property Client:TidTcpClient read FClient;
   end;
 
 implementation
@@ -79,7 +106,7 @@ uses
   , System.StrUtils
   , System.RegularExpressions
   , System.Generics.Collections
-  , uLLHookLib
+//  , uLLHookLib
   , winapi.Messages
   , IdException
   , System.UITypes
@@ -98,7 +125,43 @@ end;
 
 {$REGION 'ECHO Protocol'}
 
-  procedure TProto.cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
+function TProto.AddClientListener(const ACmdName: string;APort:integer; const AHostname:string;
+  AListenerHandler: TListenerThreadProc): TListenerThread;
+begin
+  result :=  TListenerThread.create(
+    AListenerHandler,
+    function:TIdTCPClient
+    begin
+      result := TIdTCPClient.Create();
+      with result do
+      begin
+        Host := AHostname;
+        Port := APort;
+        ConnectTimeout := _tcpClient.ConnectTimeout;
+        ReadTimeout := _tcpClient.ReadTimeout;
+        Intercept := _tcpClient.Intercept;
+        ReadTimeout := _tcpClient.ReadTimeout;
+        OnConnected := _tcpClient.OnConnected;
+        OnAfterBind := _tcpClient.OnAfterBind;
+        Connect
+      end;
+    end)
+end;
+
+function TProto.AddServerCmd(const ACmdName: string;
+  ACmdHandler: TCmdHandler): TIdCommandHandler;
+begin
+  result := cmdTcpServer.CommandHandlers.Add;
+  with result do
+  begin
+    Command := ACmdName;
+    Disconnect := false;
+    onCommand := TCmdHandlerHelper.create(
+      ACmdHandler).OnCommand
+  end;
+end;
+
+procedure TProto.cmdTcpServerCommandHandlers0Command(ASender: TIdCommand);
   begin
     Log('%s %s received',[ASender.CommandHandler.Command, ASender.Params.Text]);
     var msg :=
@@ -192,24 +255,8 @@ begin
   ASender.SendReply;
 
   var io := ASender.Context.Connection.IOHandler;
-  var size := SizeOf(TLLMouseHookData);
-  var i := TLLMouseHook.Instance.AddListener(
-    procedure(AHookData:TLLMouseHookData)
-    begin
-      io.WriteLn('>>');
-      io.Write(RawToBytes(AHookData, size), size);
-      io.WriteLn('sent');
-      writeln('SERVER SENDINPUT sent hookdata');
-    end);
 
-  try
-    repeat
-      msg := io.ReadLn;
-      writeln('SERVER SENDINPUT', msg);
-    until msg <> 'rcvd';
-  finally
-    TLLMouseHook.Instance.RemoveListener(i)
-  end
+  fInputSender(io)
 end;
 
 procedure TProto.SendListenMouse(AClient: TIdTcpClient);
@@ -220,48 +267,47 @@ begin
 
     var inps := TSendInputHelper.Create;
     var msg := 'Starting..';
-    with AClient do
-    begin
-      var size := SizeOf(TLLMouseHookData);
-      var io := IOHandler;
-      var data:TLLMouseHookData;
-      var bytes:TIdBytes;
-      repeat
-
-        WriteLn('CLIENT SENDINPUT ',msg);
-        msg := io.ReadLn;
-        WriteLn('CLIENT SENDINPUT ',msg);
-        if msg <> '>>' then
-          raise Exception.Create('Unexpected response');
-
-        io.ReadBytes(bytes, Size, false);
-        msg := io.ReadLn;
-        WriteLn('CLIENT SENDINPUT ',msg);
-        if msg <> 'sent' then
-          raise Exception.Create('Unexpected response');
-
-        data := PLLMouseHookData(@bytes[0])^;
-        case data.wparam of
-  //            WM_LBUTTONDOWN:
-          WM_LBUTTONUP:
-          begin
-            WriteLn('CLIENT SENDINPUT WM_LBUTTONUP');
-            inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
-            inps.AddMouseClick(TMouseButton.mbLeft);
-            inps.Flush
-          end;
-          WM_MOUSEMOVE:
-          begin
-            WriteLn('CLIENT SENDINPUT WM_MOUSEMOVE');
-            inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
-            inps.Flush
-          end;
-        end;
-
-        io.WriteLn('rcvd');
-        msg := 'waiting..';
-      until false;
-    end
+//    with AClient do
+//    begin
+//      var io := IOHandler;
+//      var data:TLLMouseHookData;
+//      var bytes:TIdBytes;
+//      repeat
+//
+//        WriteLn('CLIENT SENDINPUT ',msg);
+//        msg := io.ReadLn;
+//        WriteLn('CLIENT SENDINPUT ',msg);
+//        if msg <> '>>' then
+//          raise Exception.Create('Unexpected response');
+//
+//        io.ReadBytes(bytes, Size, false);
+//        msg := io.ReadLn;
+//        WriteLn('CLIENT SENDINPUT ',msg);
+//        if msg <> 'sent' then
+//          raise Exception.Create('Unexpected response');
+//
+//        data := PLLMouseHookData(@bytes[0])^;
+//        case data.wparam of
+//  //            WM_LBUTTONDOWN:
+//          WM_LBUTTONUP:
+//          begin
+//            WriteLn('CLIENT SENDINPUT WM_LBUTTONUP');
+//            inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
+//            inps.AddMouseClick(TMouseButton.mbLeft);
+//            inps.Flush
+//          end;
+//          WM_MOUSEMOVE:
+//          begin
+//            WriteLn('CLIENT SENDINPUT WM_MOUSEMOVE');
+//            inps.AddAbsoluteMouseMove(data.data.pt.X, data.data.pt.Y);
+//            inps.Flush
+//          end;
+//        end;
+//
+//        io.WriteLn('rcvd');
+//        msg := 'waiting..';
+//      until false;
+//    end
   except
     on e:exception do
     begin
@@ -270,23 +316,6 @@ begin
     end;
   end;
 end;
-
-type
-  TListenerThread = class;
-
-  TListenerThreadProc = reference to procedure(AThread:TListenerThread);
-  TNewClientProc = TFunc<Tidtcpclient>;
-
-  TListenerThread = class(TThread)
-    fProc:TListenerThreadProc;
-    fNewClient:TFunc<Tidtcpclient>;
-    fClient:TidTcpClient;
-    procedure Execute; override;
-  public
-    constructor create(AProc:TListenerThreadProc; ANewClient:TFunc<Tidtcpclient>);
-
-    property Client:TidTcpClient read FClient;
-  end;
 
 procedure TProto.StartClient(ACancel: TEvent; AValues:TCmdValue);
 
@@ -489,6 +518,18 @@ begin
       log('Reconnected..');
     end
   end;
+end;
+
+{ TCmdHandlerHelper }
+
+constructor TCmdHandlerHelper.create(ACmdHandler: TCmdHandler);
+begin
+  fCmdHandler := ACmdHandler
+end;
+
+procedure TCmdHandlerHelper.OnCommand(ASender: TIdCommand);
+begin
+  fCmdHandler(ASender.Context.Connection.IOHandler)
 end;
 
 end.

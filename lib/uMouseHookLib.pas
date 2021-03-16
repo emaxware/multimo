@@ -17,32 +17,9 @@ const
 
   WM_APP_STOPHOOK             = WM_APP + $0001;
   WM_APP_LLMOUSE              = WM_APP + $0002;
-//  SYNERGY_MSG_MARK            = WM_APP + $0011;        // mark id; <unused>
-//  SYNERGY_MSG_KEY             = WM_APP + $0012;        // vk code; key data
-//  SYNERGY_MSG_MOUSE_BUTTON    = WM_APP + $0013;        // button msg; <unused>
-//  SYNERGY_MSG_MOUSE_WHEEL     = WM_APP + $0014;        // delta; <unused>
-//  SYNERGY_MSG_MOUSE_MOVE      = WM_APP + $0015;        // x; y
-//  SYNERGY_MSG_POST_WARP       = WM_APP + $0016;        // <unused>; <unused>
-//  SYNERGY_MSG_PRE_WARP        = WM_APP + $0017;        // x; y
-//  SYNERGY_MSG_SCREEN_SAVER    = WM_APP + $0018;        // activated; <unused>
-//  SYNERGY_MSG_DEBUG           = WM_APP + $0019;        // data, data
-//  SYNERGY_MSG_INPUT_FIRST     = SYNERGY_MSG_KEY;
-//  SYNERGY_MSG_INPUT_LAST      = SYNERGY_MSG_PRE_WARP;
-//  SYNERGY_HOOK_LAST_MSG       = SYNERGY_MSG_DEBUG;
 
 type
-//  PLLMouseHookStruct = ^TLLMouseHookStruct;
-//  tagLLMOUSEHOOKSTRUCT = record
-//    pt: TPoint;
-//    mouseData: DWORD;
-//    flags: DWORD;
-//    time: DWORD;
-//    dwExtraInfo: ULONG_PTR;
-//  end;
-  TLLMouseHookStruct = tagLLMOUSEHOOKSTRUCT;
-//  LLMOUSEHOOKSTRUCT = tagLLMOUSEHOOKSTRUCT;
-
-
+//  TLLMouseHookStruct = tagLLMOUSEHOOKSTRUCT;
 
   TLLMouseHookData = record
     wparam:WPARAM;
