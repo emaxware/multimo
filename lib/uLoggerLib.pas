@@ -17,6 +17,14 @@ uses
 type
   TLogPriority = (lpError,lpWarning,lpInfo,lpDebug,lpVerbose);
 
+  TLogMsgRec = record
+    msg:string;
+    module:string;
+    dt:TDateTime;
+    p:TLogPriority;
+    threadid:integer;
+  end;
+
 var
   CLogPrefix:array[TLogPriority] of string = ('!','?',':','#','.');
 
@@ -31,6 +39,7 @@ type
     procedure LogDebugFmt(const AFmtStr:string; const Args:array of const);
     procedure LogError(Ex:Exception;const AMsg:string);
     procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const);
+    function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string;
 //    procedure FlushLog;
     procedure StopLog;
     procedure WaitForLogStop;
@@ -49,6 +58,7 @@ type
     procedure LogDebugFmt(const AFmtStr:string; const Args:array of const);
     procedure LogError(Ex:Exception;const AMsg:string);
     procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const);
+    function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string;
     procedure FlushLog;
     procedure StopLog;
     procedure WaitForLogStop;
@@ -108,22 +118,30 @@ type
     property DefaultPriority:TLogPriority read FDefaultPriority write FDefaultPriority;
   end;
 
-  TLogMsgRec = record
-    msg:string;
-    module:string;
-    dt:TDateTime;
-    p:TLogPriority;
-    threadid:integer;
-  end;
+  TOnLogMsg = reference to procedure(AMsgRec:TLogMsgRec);
 
   TAsyncLogger = class(TSimpleLogger)
   protected
     FThreadPool:TThreadPool;
+    FOnLogMsg:TOnLogMsg;
     FLogMsg:TList<TLogMsgRec>;
     FLogEvent, FLogActive, FLogStopped:TSimpleEvent;
     procedure DoLog(APriority:TLogPriority; const AMsg:string); override;
   public
-    constructor create(AThreadPool:TThreadPool;AOnLog:TOnLog;const AModulename:string; AThresholdPriority:TLogPriority =
+    constructor Create(AThreadPool:TThreadPool;AOnLog:TOnLog;const AModulename:string; AThresholdPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+      ; ADefaultPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+    );
+    constructor CreateWithLogMsg(AThreadPool:TThreadPool;AOnLogMsg: TOnLogMsg;const AModulename:string; AThresholdPriority:TLogPriority =
 {$IFDEF DEBUG}
       lpDebug
 {$ELSE}
@@ -520,7 +538,9 @@ end;
 
 { TAsyncLogger }
 
-constructor TAsyncLogger.create;
+constructor TAsyncLogger.create(AThreadPool: TThreadPool; AOnLog: TOnLog;
+  const AModulename: string; AThresholdPriority,
+  ADefaultPriority: TLogPriority);
 begin
   inherited create(AOnLog,AModulename,AThresholdPriority,ADefaultPriority);
   FThreadPool := AThreadPool;
@@ -535,6 +555,14 @@ begin
       FlushLog
     end
   );
+end;
+
+constructor TAsyncLogger.CreateWithLogMsg(AThreadPool: TThreadPool;AOnLogMsg: TOnLogMsg;
+  const AModulename: string; AThresholdPriority,
+  ADefaultPriority: TLogPriority);
+begin
+  FOnLogMsg := AOnLogMsg;
+  create(AThreadPool, nil, AModulename, AThresholdPriority, ADefaultPriority)
 end;
 
 procedure TAsyncLogger.FlushLog;
@@ -554,7 +582,10 @@ begin
             FLogMsg.Delete(0);
             TMonitor.Exit(FLogMsg);
             try
-              FOnLog(msgrec.p,FormatLog(msgrec.p,msgrec.dt,msgrec.threadid,msgrec.module,msgrec.msg),msgrec.msg)
+              if Assigned(FOnLog) then
+                FOnLog(msgrec.p,FormatLog(msgrec.p,msgrec.dt,msgrec.threadid,msgrec.module,msgrec.msg),msgrec.msg);
+              if Assigned(FOnLogMsg) then
+                FOnLogMsg(msgrec)
             finally
               TMonitor.Enter(FLogMsg)
             end
@@ -630,6 +661,12 @@ begin
 end;
 
 procedure TNullLogger.FlushLog;
+begin
+
+end;
+
+function TNullLogger.FormatLog(APriority: TLogPriority; ADate: TDateTime;
+  AThreadID: integer; const AModuleName, AMsg: string): string;
 begin
 
 end;

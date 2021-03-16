@@ -4,7 +4,8 @@ interface
 
 uses
   uCommandLineOptions
-  , dProtocol
+//  , dProtocol
+  , system.SyncObjs
   ;
 
 type
@@ -12,15 +13,32 @@ type
 
   TCustomController = class
   protected
-    fOpts:TCmdOptions;
     fVals:TCmdValue;
-    class var fInstance:TCustomController;
-    constructor create;
+    fParent:TCustomController;
+    fStarted:TSimpleEvent;
   public
-    class function Instance:TCustomController;
+    constructor create(
+      AController:TCustomController;
+      AValues:TCmdValue
+    ); virtual;
 
-    function Start: boolean;
+    function Start: boolean; virtual;
+    function Stop: boolean; virtual;
+
+    function Started:boolean; virtual;
 //    property MachineName:string read GetMachineName write fMachineName;
+  end;
+
+  TDispatchController = class(TCustomController)
+  protected
+    fOpts:TCmdOptions;
+    class var fInstance:TDispatchController;
+  public
+    constructor create;
+
+    function Start: boolean; override;
+
+    class function Instance:TDispatchController;
   end;
 
 implementation
@@ -32,18 +50,15 @@ uses
   , System.SysUtils
   , IdIOHandler
   , IdGlobal
+  , dProtocol
   , uLoggerLib
   , uLLHookLib
   , uSendInput
+  , uHookInputController
   ;
 
-//var
-//  cancel:TEvent;
-constructor TCustomController.create;
+constructor TDispatchController.create;
 begin
-
-//  cancel := TEvent.create(False);
-
   fOpts := TCmdOptions.create;
 
   fOpts
@@ -54,36 +69,47 @@ begin
       .EndSubCmd
     .Add('SERVER', [], '8989')
       .BeginSubCmd
-      .Add('ECHO', [], 'Hello')
-      .Add('LISTENINPUT', [cosCmd])
-      .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
-      .Add('SENDHOOKINPUT', [cosCmd], '')
+//      .Add('ECHO', [], 'Hello')
+//      .Add('LISTENINPUT', [cosCmd])
+      .Add('LOG', [cosCmd], '')
+      .Add('SENDINPUT', [cosCmd])
+        .BeginSubCmd
+        .Add('SENDSTRING', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+        .Add('SENDHOOKINPUT', [cosCmd])
+        .EndSubCmd
       .EndSubCmd
     .Add('CLIENT', [cosCmd])
       .BeginSubCmd
       .Add('PORT', [cosRequired], '8989', 'Protocol Port')
       .Add('HOST', [cosRequired])
-      .Add('ECHO', [], 'Hello')
+//      .Add('ECHO', [], 'Hello')
+      .Add('LOG', [cosCmd], 'Started')
       .Add('LISTENINPUT', [cosCmd])
-      .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
-      .Add('SENDHOOKINPUT', [cosCmd], '')
+//      .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+//      .Add('SENDHOOKINPUT', [cosCmd], '')
       .EndSubCmd
     .Add('INPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
     ;
 
-  fOpts.ParseCommandLine(fVals, TCmdOption.ConsoleOptionHandler())
+  var AVals:TCmdValue;
+  if fOpts.ParseCommandLine(AVals, TCmdOption.ConsoleOptionHandler()) then
+    inherited create(nil, AVals)
+  else
+    raise Exception.Create('Error Message');
 end;
 
-class function TCustomController.Instance: TCustomController;
+class function TDispatchController.Instance: TDispatchController;
 begin
-  if TCustomController.fInstance = nil then
-    TCustomController.fInstance := TCustomController.create;
-  result := TCustomController.fInstance
+  if TDispatchController.fInstance = nil then
+    TDispatchController.fInstance := TDispatchController.create;
+  result := TDispatchController.fInstance
 end;
 
-function TCustomController.Start:boolean;
+function TDispatchController.Start:boolean;
 begin
-  with TProto.Instance do
+//  with TProto.Instance do
+//  begin
+  result := inherited;
   try
     if fVals.Enabled['HOOK'] then
     begin
@@ -94,86 +120,17 @@ begin
     with fVals['SERVER'] do
     begin
 //          StartServer(cancel, fVals['SERVER'],
-      if Enabled['SENDHOOKINPUT'] then
-        AddServerCmd('SENDHOOKINPUT',
-          procedure(AIO:TIdIOHandler)
-          begin
-            var sizeTInput := SizeOf(TInput);
-            var inps := TSendInputHelper.Create;
-            var i := TLLMouseHook.Instance.AddListener(
-              procedure(AHookData:TLLMouseHookData)
-              begin
-                inps.Clear;
-                case AHookData.wParam of
-                  WM_RBUTTONUP:
-                  begin
-                    inps.AddAbsoluteMouseMove(AHookData.data.pt.X, AHookData.data.pt.Y);
-                    inps.AddMouseClick(TMouseButton.mbRight);
-                  end;
-                  WM_LBUTTONUP:
-                  begin
-                    inps.AddAbsoluteMouseMove(AHookData.data.pt.X, AHookData.data.pt.Y);
-                    inps.AddMouseClick(TMouseButton.mbLeft);
-                  end;
-                  WM_MOUSEMOVE:
-                  begin
-                    inps.AddAbsoluteMouseMove(AHookData.data.pt.X, AHookData.data.pt.Y);
-                  end;
-                end;
+      if Enabled['SENDINPUT'] then
+        THookInputServerController.create(Self, Option['SENDINPUT'], 'SENDINPUT');
 
-                for var inp in inps do
-                begin
-                  AIO.WriteLn('>>');
-                  AIO.Write(RawToBytes(inp, sizeTInput), sizeTInput);
-                end;
-
-                AIO.WriteLn('sent');
-              end);
-
-            var msg:string;
-            try
-              repeat
-                msg := AIO.ReadLn;
-              until msg <> 'rcvd';
-            finally
-              TLLMouseHook.Instance.RemoveListener(i)
-            end
-          end)
+      TProto.Instance.StartServer(nil, fVals['SERVER'])
     end
     else
     if fVals.Enabled['CLIENT'] then
     with fVals['CLIENT'] do
     begin
-      AddClientListener('LISTENINPUT',
-        Option['PORT'].asInteger,
-        Option['HOST'].Value,
-        procedure(AThread:TListenerThread)
-        begin
-          var sizeTInput := SizeOf(TInput);
-          var inps := TSendInputHelper.Create;
-          var reply := AThread.Client.SendCmd('SENDHOOKINPUT', '');
-          system.writeln(AThread.Client.LastCmdResult.Text.Text);
-
-          repeat
-            var msg := AThread.Client.IOHandler.ReadLn();
-            if msg='>>' then
-            begin
-              var data:TIdBytes;
-              AThread.Client.IOHandler.ReadBytes(data, sizeTInput);
-              inps.Add(PInput(@data[0])^);
-              continue;
-            end;
-            if msg='sent' then
-            begin
-
-              break
-            end;
-            raise Exception.CreateFmt('Unexpected token "%s"',[msg]);
-          until false;
-        end)
-
-
-//          StartClient(cancel, fVals['CLIENT'])
+      if Enabled['LISTENINPUT'] then
+        THookInputClientController.create(Self, Option['LISTENINPUT'], 'LISTENINPUT', Option['PORT'].asInteger, Option['HOST'].Value)
     end;
 
     if fVals.Enabled['MOUSEMOVE'] then
@@ -188,13 +145,40 @@ begin
       end
     end;
 
-    writeln('Press ENTER');
-    readln;
-    stop
-  finally
-    free;
-    fVals.free
+  except
+    on e:exception do
+    begin
+      stop;
+      raise
+    end
   end
+end;
+
+{ TCustomController }
+
+constructor TCustomController.create(AController: TCustomController;
+  AValues: TCmdValue);
+begin
+  fVals := AValues;
+  fParent := AController;
+  fStarted := TSimpleEvent.Create
+end;
+
+function TCustomController.Start: boolean;
+begin
+  fStarted.SetEvent;
+  result := true
+end;
+
+function TCustomController.Started: boolean;
+begin
+  result := fStarted.IsSet
+end;
+
+function TCustomController.Stop: boolean;
+begin
+  fStarted.ResetEvent;
+  result := true
 end;
 
 end.
