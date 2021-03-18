@@ -59,15 +59,13 @@ type
 
   TSimpleLogger = class(TInterfacedObject, ILogger)
   protected
-//    class var
-      FFormatSettingSync:TFormatSettings;
-      FFormatSyncObj:TMutex;// TCriticalSection;
-      class var
-        fDefLogger:ILogger;
-    var
-      FPriorityThreshold, FDefaultPriority: TLogPriority;
-      FOnLog:TOnLog;
-      FModulename:string;
+    FFormatSettingSync:TFormatSettings;
+    FFormatSyncObj:TMutex;// TCriticalSection;
+    FPriorityThreshold, FDefaultPriority: TLogPriority;
+    FOnLog:TOnLog;
+    FModulename:string;
+    class var
+      fDefLogger:ILogger;
     function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string;
 
     procedure DoLog(APriority:TLogPriority; const AMsg:string); virtual;
@@ -154,7 +152,7 @@ type
   EAssertWin32 = class(Exception)
   end;
 
-procedure sync(AProc:TThreadProcedure);      overload;
+procedure sync(AProc:TThreadProcedure); overload;
 function sync(AProc:TFunc<Boolean>):boolean; overload;
 function sync(AProc:TFunc<string>):string; overload;
 
@@ -372,7 +370,8 @@ end;
 
 procedure TSimpleLogger.LogFmt(APriority:TLogPriority; const AFmtStr: string; const Args: array of const);
 begin
-  Log(APriority,FormatSync(AFmtStr,Args))
+  if assigned(FOnLog) and (APriority <= FPriorityThreshold) then
+    Log(APriority,FormatSync(AFmtStr,Args))
 end;
 
 function TSimpleLogger.Modulename: string;
@@ -398,7 +397,8 @@ end;
 procedure TSimpleLogger.LogDebugFmt(const AFmtStr: string;
   const Args: array of const);
 begin
-  LogDebug(FormatSync(AFmtStr,Args))
+  if assigned(FOnLog) and (lpDebug <= FPriorityThreshold) then
+    LogDebug(FormatSync(AFmtStr,Args))
 end;
 
 procedure TSimpleLogger.LogError(Ex: Exception; const AMsg: string);
@@ -412,7 +412,8 @@ end;
 procedure TSimpleLogger.LogErrorFmt(Ex: Exception; const AFmtStr: string;
   const Args: array of const);
 begin
-  LogError(Ex,FormatSync(AFmtStr,Args))
+  if assigned(FOnLog) and (lpError <= FPriorityThreshold) then
+    LogError(Ex,FormatSync(AFmtStr,Args))
 end;
 
 constructor TSimpleLogger.create(AOnLog: TOnLog; const AModulename: string;
@@ -478,15 +479,6 @@ end;
 
 function TSimpleLogger.FormatLog(APriority: TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg: string): string;
 begin
-//  if AModuleName = '' then
-//    result := format('%s%s-%10s-%8d-%s',[
-//      CLogPrefix[APriority]
-//      , formatdatetime('yyyymmdd"T"hhnnss.zzz',ADate)
-//      , ''
-//      , ThreadID
-//      , AMsg
-//      ])
-//  else
   try
     result := //AMsg;
       formatsync('%s%s-%-10s-%8d-%s',[
