@@ -17,6 +17,14 @@ uses
 type
   TLogPriority = (lpError,lpWarning,lpInfo,lpDebug,lpVerbose);
 
+  TLogMsgRec = record
+    msg:string;
+    module:string;
+    dt:TDateTime;
+    p:TLogPriority;
+    threadid:integer;
+  end;
+
 var
   CLogPrefix:array[TLogPriority] of string = ('!','?',':','#','.');
 
@@ -31,6 +39,8 @@ type
     procedure LogDebugFmt(const AFmtStr:string; const Args:array of const);
     procedure LogError(Ex:Exception;const AMsg:string);
     procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const);
+    function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string;
+    function FormatLogMsgRec(AMsgRec:TLogMsgRec):string;
 //    procedure FlushLog;
     procedure StopLog;
     procedure WaitForLogStop;
@@ -41,47 +51,52 @@ type
 
   TNullLogger = class(TInterfacedObject, ILogger)
   protected
-    procedure DefLog(const AMsg:string);
-    procedure DefLogFmt(const AFmtStr:string; const Args:array of const);
-    procedure Log(APriority:TLogPriority; const AMsg:string);
-    procedure LogFmt(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const);
-    procedure LogDebug(const AMsg:string);
-    procedure LogDebugFmt(const AFmtStr:string; const Args:array of const);
-    procedure LogError(Ex:Exception;const AMsg:string);
-    procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const);
-    procedure FlushLog;
-    procedure StopLog;
-    procedure WaitForLogStop;
-    function Modulename:string;
-  public
-    constructor create;
-  end;
+      FFormatSettingSync:TFormatSettings;
+      FFormatSyncObj:TMutex;// TCriticalSection;
+    function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string; virtual;
+    function FormatLogMsgRec(AMsgRec:TLogMsgRec):string;
+    function formatsync(const AFmtStr:string; Args:array of const):string;
+    function formatdatetime(ADate:TDateTime):string;
 
-  TSimpleLogger = class(TInterfacedObject, ILogger)
-  protected
-    FFormatSettingSync:TFormatSettings;
-    FFormatSyncObj:TMutex;// TCriticalSection;
-    FPriorityThreshold, FDefaultPriority: TLogPriority;
-    FOnLog:TOnLog;
-    FModulename:string;
-    class var
-      fDefLogger:ILogger;
-    function FormatLog(APriority:TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg:string):string;
-
-    procedure DoLog(APriority:TLogPriority; const AMsg:string); virtual;
-
-    procedure DefLog(const AMsg:string);
-    procedure DefLogFmt(const AFmtStr:string; const Args:array of const);
-    procedure Log(APriority:TLogPriority; const AMsg:string);
-    procedure LogFmt(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const);
-    procedure LogDebug(const AMsg:string);
-    procedure LogDebugFmt(const AFmtStr:string; const Args:array of const);
-    procedure LogError(Ex:Exception;const AMsg:string);
-    procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const);
+    procedure DefLog(const AMsg:string); virtual;
+    procedure DefLogFmt(const AFmtStr:string; const Args:array of const); virtual;
+    procedure Log(APriority:TLogPriority; const AMsg:string); virtual;
+    procedure LogFmt(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const); virtual;
+    procedure LogDebug(const AMsg:string); virtual;
+    procedure LogDebugFmt(const AFmtStr:string; const Args:array of const); virtual;
+    procedure LogError(Ex:Exception;const AMsg:string); virtual;
+    procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const); virtual;
     procedure FlushLog; virtual;
     procedure StopLog; virtual;
     procedure WaitForLogStop; virtual;
     function Modulename:string; virtual;
+  public
+    constructor create;
+  end;
+
+  TSimpleLogger = class(TNullLogger)
+  protected
+    class var
+      fDefLogger:ILogger;
+    var
+      FPriorityThreshold, FDefaultPriority: TLogPriority;
+      FOnLog:TOnLog;
+      FModulename:string;
+
+    procedure DoLog(APriority:TLogPriority; const AMsg:string); virtual;
+
+    procedure DefLog(const AMsg:string); override;
+    procedure DefLogFmt(const AFmtStr:string; const Args:array of const); override;
+    procedure Log(APriority:TLogPriority; const AMsg:string); override;
+    procedure LogFmt(APriority:TLogPriority;  const AFmtStr:string; const Args:array of const); override;
+    procedure LogDebug(const AMsg:string); override;
+    procedure LogDebugFmt(const AFmtStr:string; const Args:array of const); override;
+    procedure LogError(Ex:Exception;const AMsg:string); override;
+    procedure LogErrorFmt(Ex:Exception;const AFmtStr:string; const Args:array of const); override;
+    procedure FlushLog; override;
+    procedure StopLog; override;
+    procedure WaitForLogStop; override;
+    function Modulename:string; override;
   public
 //    class constructor create;
     constructor create(AOnLog:TOnLog; const AModulename:string; AThresholdPriority:TLogPriority =
@@ -98,30 +113,36 @@ type
 {$ENDIF}
       );
 
-    function formatsync(const AFmtStr:string; Args:array of const):string;
-    function formatdatetime(ADate:TDateTime):string;
     class function DefLogger:ILogger; overload;
 
     property ThresholdPriority:TLogPriority read FPriorityThreshold write FPriorityThreshold;
     property DefaultPriority:TLogPriority read FDefaultPriority write FDefaultPriority;
   end;
 
-  TLogMsgRec = record
-    msg:string;
-    module:string;
-    dt:TDateTime;
-    p:TLogPriority;
-    threadid:integer;
-  end;
+  TOnLogMsg = reference to procedure(AMsgRec:TLogMsgRec);
 
   TAsyncLogger = class(TSimpleLogger)
   protected
     FThreadPool:TThreadPool;
+    FOnLogMsg:TOnLogMsg;
     FLogMsg:TList<TLogMsgRec>;
     FLogEvent, FLogActive, FLogStopped:TSimpleEvent;
     procedure DoLog(APriority:TLogPriority; const AMsg:string); override;
   public
-    constructor create(AThreadPool:TThreadPool;AOnLog:TOnLog;const AModulename:string; AThresholdPriority:TLogPriority =
+    constructor Create(AThreadPool:TThreadPool;AOnLog:TOnLog;const AModulename:string; AThresholdPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+      ; ADefaultPriority:TLogPriority =
+{$IFDEF DEBUG}
+      lpDebug
+{$ELSE}
+      lpInfo
+{$ENDIF}
+    );
+    constructor CreateWithLogMsg(AThreadPool:TThreadPool;AOnLogMsg: TOnLogMsg;const AModulename:string; AThresholdPriority:TLogPriority =
 {$IFDEF DEBUG}
       lpDebug
 {$ELSE}
@@ -152,7 +173,7 @@ type
   EAssertWin32 = class(Exception)
   end;
 
-procedure sync(AProc:TThreadProcedure); overload;
+procedure sync(AProc:TThreadProcedure);      overload;
 function sync(AProc:TFunc<Boolean>):boolean; overload;
 function sync(AProc:TFunc<string>):string; overload;
 
@@ -210,7 +231,6 @@ begin
         setlength(result, rslt)
       else
         Result := '';
-//    end;
   finally
     CloseHandle(Handle);
   end;
@@ -370,8 +390,7 @@ end;
 
 procedure TSimpleLogger.LogFmt(APriority:TLogPriority; const AFmtStr: string; const Args: array of const);
 begin
-  if assigned(FOnLog) and (APriority <= FPriorityThreshold) then
-    Log(APriority,FormatSync(AFmtStr,Args))
+  Log(APriority,FormatSync(AFmtStr,Args))
 end;
 
 function TSimpleLogger.Modulename: string;
@@ -397,8 +416,7 @@ end;
 procedure TSimpleLogger.LogDebugFmt(const AFmtStr: string;
   const Args: array of const);
 begin
-  if assigned(FOnLog) and (lpDebug <= FPriorityThreshold) then
-    LogDebug(FormatSync(AFmtStr,Args))
+  LogDebug(FormatSync(AFmtStr,Args))
 end;
 
 procedure TSimpleLogger.LogError(Ex: Exception; const AMsg: string);
@@ -412,8 +430,7 @@ end;
 procedure TSimpleLogger.LogErrorFmt(Ex: Exception; const AFmtStr: string;
   const Args: array of const);
 begin
-  if assigned(FOnLog) and (lpError <= FPriorityThreshold) then
-    LogError(Ex,FormatSync(AFmtStr,Args))
+  LogError(Ex,FormatSync(AFmtStr,Args))
 end;
 
 constructor TSimpleLogger.create(AOnLog: TOnLog; const AModulename: string;
@@ -424,8 +441,6 @@ begin
   FPriorityThreshold := AThresholdPriority;
   FDefaultPriority := ADefaultPriority;
   FModulename := AModulename;
-  FFormatSyncObj := TMutex.create;// TCriticalSection.Create;
-  FFormatSettingSync := FormatSettings;
 end;
 
 //class constructor TSimpleLogger.create;
@@ -468,51 +483,11 @@ begin
 
 end;
 
-function TSimpleLogger.formatdatetime(ADate: TDateTime): string;
-var
-  d1, d2, d3, d4, d5, d6, d7:word;
-begin
-  DecodeDate(ADate, d1, d2, d3);
-  DecodeTime(ADate, d4, d5, d6, d7);
-  result := FormatSync('%4d%2.2d%2.2dT%2.2d%2.2d%2.2d.%3.3d',[d1,d2,d3,d4,d5,d6,d7])
-end;
-
-function TSimpleLogger.FormatLog(APriority: TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg: string): string;
-begin
-  try
-    result := //AMsg;
-      formatsync('%s%s-%-10s-%8d-%s',[
-      CLogPrefix[APriority]
-      , formatdatetime(ADate)
-      , AModuleName
-      , AThreadID
-      , AMsg
-      ])
-  except
-    on e:exception do
-      result := 'FormatLog: ' + AMsg + ' !!' + e.classname + ' ' + e.message
-  end;
-end;
-
-function TSimpleLogger.formatsync(const AFmtStr: string;
-  Args: array of const): string;
-begin
-  FFormatSyncObj.Acquire;
-  try
-    try
-      result := Format(AFmtStr,Args,FFormatSettingSync)
-    except
-      on e:exception do
-        result := 'formatsync: ' + AFmtStr + ' !!' + e.classname + ' ' + e.message
-    end;
-  finally
-    FFormatSyncObj.Release
-  end;
-end;
-
 { TAsyncLogger }
 
-constructor TAsyncLogger.create;
+constructor TAsyncLogger.create(AThreadPool: TThreadPool; AOnLog: TOnLog;
+  const AModulename: string; AThresholdPriority,
+  ADefaultPriority: TLogPriority);
 begin
   inherited create(AOnLog,AModulename,AThresholdPriority,ADefaultPriority);
   FThreadPool := AThreadPool;
@@ -527,6 +502,14 @@ begin
       FlushLog
     end
   );
+end;
+
+constructor TAsyncLogger.CreateWithLogMsg(AThreadPool: TThreadPool;AOnLogMsg: TOnLogMsg;
+  const AModulename: string; AThresholdPriority,
+  ADefaultPriority: TLogPriority);
+begin
+  FOnLogMsg := AOnLogMsg;
+  create(AThreadPool, nil, AModulename, AThresholdPriority, ADefaultPriority)
 end;
 
 procedure TAsyncLogger.FlushLog;
@@ -546,7 +529,10 @@ begin
             FLogMsg.Delete(0);
             TMonitor.Exit(FLogMsg);
             try
-              FOnLog(msgrec.p,FormatLog(msgrec.p,msgrec.dt,msgrec.threadid,msgrec.module,msgrec.msg),msgrec.msg)
+              if Assigned(FOnLog) then
+                FOnLog(msgrec.p,FormatLog(msgrec.p,msgrec.dt,msgrec.threadid,msgrec.module,msgrec.msg),msgrec.msg);
+              if Assigned(FOnLogMsg) then
+                FOnLogMsg(msgrec)
             finally
               TMonitor.Enter(FLogMsg)
             end
@@ -607,7 +593,34 @@ end;
 
 constructor TNullLogger.create;
 begin
-  inherited create
+  inherited create;
+  FFormatSyncObj := TMutex.create;// TCriticalSection.Create;
+  FFormatSettingSync := FormatSettings;
+end;
+
+function TNullLogger.formatdatetime(ADate: TDateTime): string;
+var
+  d1, d2, d3, d4, d5, d6, d7:word;
+begin
+  DecodeDate(ADate, d1, d2, d3);
+  DecodeTime(ADate, d4, d5, d6, d7);
+  result := FormatSync('%4d%2.2d%2.2dT%2.2d%2.2d%2.2d.%3.3d',[d1,d2,d3,d4,d5,d6,d7])
+end;
+
+function TNullLogger.formatsync(const AFmtStr: string;
+  Args: array of const): string;
+begin
+  FFormatSyncObj.Acquire;
+  try
+    try
+      result := Format(AFmtStr,Args,FFormatSettingSync)
+    except
+      on e:exception do
+        result := 'formatsync: ' + AFmtStr + ' !!' + e.classname + ' ' + e.message
+    end;
+  finally
+    FFormatSyncObj.Release
+  end;
 end;
 
 procedure TNullLogger.DefLog(const AMsg: string);
@@ -624,6 +637,38 @@ end;
 procedure TNullLogger.FlushLog;
 begin
 
+end;
+
+function TNullLogger.FormatLog(APriority: TLogPriority; ADate:TDateTime; AThreadID:integer; const AModuleName, AMsg: string): string;
+begin
+//  if AModuleName = '' then
+//    result := format('%s%s-%10s-%8d-%s',[
+//      CLogPrefix[APriority]
+//      , formatdatetime('yyyymmdd"T"hhnnss.zzz',ADate)
+//      , ''
+//      , ThreadID
+//      , AMsg
+//      ])
+//  else
+  try
+    result := //AMsg;
+      formatsync('%s%s-%-10s-%8d-%s',[
+      CLogPrefix[APriority]
+      , formatdatetime(ADate)
+      , AModuleName
+      , AThreadID
+      , AMsg
+      ])
+  except
+    on e:exception do
+      result := 'FormatLog: ' + AMsg + ' !!' + e.classname + ' ' + e.message
+  end;
+end;
+
+function TNullLogger.FormatLogMsgRec(AMsgRec: TLogMsgRec): string;
+begin
+  with AMsgRec do
+    result := FormatLog(p, dt, threadid, module, msg)
 end;
 
 procedure TNullLogger.Log(APriority: TLogPriority; const AMsg: string);

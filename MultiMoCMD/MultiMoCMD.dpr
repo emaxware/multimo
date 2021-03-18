@@ -16,14 +16,21 @@ uses
   uConsoleLogger in '..\lib\uConsoleLogger.pas',
   uSendInput in '..\lib\uSendInput.pas',
   uLLHookLib in '..\lib\uLLHookLib.pas',
-  uController in '..\lib\uController.pas';
+  uController in '..\lib\uController.pas',
+  uHookInputController in '..\lib\uHookInputController.pas',
+  uLogController in '..\lib\uLogController.pas';
 
 begin
   try
     SetLogger(TConsoleLogger.create('MULTIMO'));
     log('Logger started..');
 
-    TCustomController.Instance.Start
+    TDispatchController.Instance.Start;
+
+    writeln('Press ENTER');
+    readln;
+
+    TDispatchController.Instance.stop
 
   except
     on E: Exception do

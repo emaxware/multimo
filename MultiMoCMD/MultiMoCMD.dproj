@@ -176,6 +176,8 @@
         <DCCReference Include="..\lib\uSendInput.pas"/>
         <DCCReference Include="..\lib\uLLHookLib.pas"/>
         <DCCReference Include="..\lib\uController.pas"/>
+        <DCCReference Include="..\lib\uHookInputController.pas"/>
+        <DCCReference Include="..\lib\uLogController.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

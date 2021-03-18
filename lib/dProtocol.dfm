@@ -9,55 +9,7 @@ object Proto: TProto
     OnConnect = cmdTcpServerConnect
     OnDisconnect = cmdTcpServerDisconnect
     OnExecute = cmdTcpServerExecute
-    CommandHandlers = <
-      item
-        CmdDelimiter = ' '
-        Command = 'ECHO'
-        Disconnect = False
-        ExceptionReply.Code = ''
-        Name = 'ECHO'
-        NormalReply.Code = '200'
-        ParamDelimiter = ' '
-        ParseParams = True
-        Tag = 0
-        OnCommand = cmdTcpServerCommandHandlers0Command
-      end
-      item
-        CmdDelimiter = ' '
-        Command = 'INPUT'
-        Disconnect = False
-        ExceptionReply.Code = ''
-        Name = 'Receive INPUT'
-        NormalReply.Code = '200'
-        ParamDelimiter = ' '
-        ParseParams = True
-        Tag = 0
-        OnCommand = cmdTcpServerCommandHandlers1Command
-      end
-      item
-        CmdDelimiter = ' '
-        Command = 'SENDINPUT'
-        Disconnect = False
-        ExceptionReply.Code = ''
-        Name = 'SEND INPUT STREAM'
-        NormalReply.Code = '200'
-        ParamDelimiter = ' '
-        ParseParams = True
-        Tag = 0
-        OnCommand = cmdTcpServerCommandHandlers2Command
-      end
-      item
-        CmdDelimiter = ' '
-        Command = 'TEST'
-        Disconnect = False
-        ExceptionReply.Code = ''
-        Name = 'TEST'
-        NormalReply.Code = '200'
-        ParamDelimiter = ' '
-        ParseParams = True
-        Tag = 0
-        OnCommand = cmdTcpServerCommandHandlers0Command
-      end>
+    CommandHandlers = <>
     ExceptionReply.Code = '500'
     ExceptionReply.Text.Strings = (
       'Unknown Internal Error')
