@@ -16,14 +16,12 @@ uses
 type
   THookInputServerController = class(TProtoServerController)
   protected
-//    fCmdHandler:TIdCommandHandler;
   public
     function Start:boolean; override;
   end;
 
   THookInputClientController = class(TProtoClientController)
   protected
-//    fListenerThread:TListenerThread;
   public
     function Start:boolean; override;
   end;
@@ -44,6 +42,13 @@ uses
   , uLLHookLib
   ;
 
+const
+  LLKHF_EXTENDED = KF_EXTENDED shr 8;
+  LLKHF_LOWER_IL_INJECTED = $00000002;
+  LLKHF_INJECTED = $00000010;
+  LLKHF_ALTDOWN = KF_ALTDOWN shr 8;
+  LLKHF_UP = KF_UP shr 8;
+
 { TInputHelper }
 
 procedure TInputHelper.AddMouseMoves;
@@ -62,13 +67,11 @@ function THookInputClientController.Start: boolean;
 begin
   result := inherited start;
   if result then
-    InternalStart(
-      procedure(AThread:TListenerThread)
+    InternalStartClient(
+      procedure(const AReply:string; AThread:TListenerThread)
       begin
         var sizeTInput := SizeOf(TInput);
         var inps := TSendInputHelper.Create;
-        var reply := AThread.Client.SendCmd('SENDINPUT', '');
-        system.writeln(AThread.Client.LastCmdResult.Text.Text);
 
         repeat
           var msg := AThread.Client.IOHandler.ReadLn();
@@ -81,8 +84,9 @@ begin
           end;
           if msg='sent' then
           begin
-
-            break
+            AThread.Client.IOHandler.WriteLn('rcvd');
+            inps.Flush;
+            continue
           end;
           raise Exception.CreateFmt('Unexpected token "%s"',[msg]);
         until false;
@@ -95,7 +99,7 @@ function THookInputServerController.Start: boolean;
 begin
   result := inherited start;
   if result then
-    InternalStart(
+    InternalStartServer(
         procedure(AIO:TIdIOHandler)
         begin
           var sizeTInput := SizeOf(TInput);
@@ -118,13 +122,65 @@ begin
             end
           end;
 
-          if fVals.Enabled['SENDHOOKINPUT'] then
+          if fVals.Enabled['KBDINPUT'] then
+          begin
+            var inps := TSendInputHelper.Create;
+            var i := TLLKbdHook.Instance.AddListener(
+              procedure(AHookData:TLLKbdHookData)
+              begin
+                if (AHookData.data.flags and LLKHF_INJECTED) = LLKHF_INJECTED then
+                  exit;
+
+                inps.Clear;
+                case AHookData.wParam of
+//                  WM_KEYDOWN:
+//                  WM_KEYUP:
+                  0:;
+                  else
+                    inps.AddKeyboardInput(AHookData.data.vkCode, AHookData.data.scanCode, AHookData.data.flags, AHookData.data.time);
+                end;
+
+                for var inp in inps do
+                begin
+                  AIO.WriteLn('>>');
+                  AIO.Write(RawToBytes(inp, sizeTInput), sizeTInput);
+                end;
+
+                AIO.WriteLn('sent');
+              end);
+
+            var msg:string;
+            try
+              repeat
+                msg := AIO.ReadLn;
+              until msg <> 'rcvd';
+            finally
+              TLLMouseHook.Instance.RemoveListener(i)
+            end
+          end;
+
+          if fVals.Enabled['MOUSEINPUT'] then
           begin
             var inps := TSendInputHelper.Create;
             var i := TLLMouseHook.Instance.AddListener(
               procedure(AHookData:TLLMouseHookData)
               begin
+                if (AHookData.data.flags and LLKHF_INJECTED) = LLKHF_INJECTED then
+                  exit;
+
                 inps.Clear;
+//                var inp:TInput;
+//
+//                with inp.mi do
+//                begin
+//                  dx := AHookData.data.pt.x;
+//                  dy := AHookData.data.pt.Y;
+//                  mouseData := AHookData.data.mouseData;
+//                  dwFlags := AHookData.data.flags;
+//                  time := AHookData.data.time
+//                end;
+//                inps.add(inp);
+
                 case AHookData.wParam of
                   WM_RBUTTONUP:
                   begin

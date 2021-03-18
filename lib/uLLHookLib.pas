@@ -1,5 +1,7 @@
 unit uLLHookLib;
 
+{$DEFINE HOOK_TRACE}
+
 interface
 
 uses
@@ -16,19 +18,11 @@ const
   WM_APP = $8000;
 
   WM_APP_STOPHOOK             = WM_APP + $0001;
-  WM_APP_LLMOUSE              = WM_APP + $0002;
-//  SYNERGY_MSG_MARK            = WM_APP + $0011;        // mark id; <unused>
-//  SYNERGY_MSG_KEY             = WM_APP + $0012;        // vk code; key data
-//  SYNERGY_MSG_MOUSE_BUTTON    = WM_APP + $0013;        // button msg; <unused>
-//  SYNERGY_MSG_MOUSE_WHEEL     = WM_APP + $0014;        // delta; <unused>
-//  SYNERGY_MSG_MOUSE_MOVE      = WM_APP + $0015;        // x; y
-//  SYNERGY_MSG_POST_WARP       = WM_APP + $0016;        // <unused>; <unused>
-//  SYNERGY_MSG_PRE_WARP        = WM_APP + $0017;        // x; y
-//  SYNERGY_MSG_SCREEN_SAVER    = WM_APP + $0018;        // activated; <unused>
-//  SYNERGY_MSG_DEBUG           = WM_APP + $0019;        // data, data
-//  SYNERGY_MSG_INPUT_FIRST     = SYNERGY_MSG_KEY;
-//  SYNERGY_MSG_INPUT_LAST      = SYNERGY_MSG_PRE_WARP;
-//  SYNERGY_HOOK_LAST_MSG       = SYNERGY_MSG_DEBUG;
+  WM_APP_HOOKMSG              = WM_APP + $0002;
+
+  MOUSEEVENTF_XDOWN = $0080;
+  MOUSEEVENTF_XUP = $0100;
+  MOUSEEVENTF_VIRTUALDESK = $4000;
 
 type
   PLLMouseHookStruct = ^TLLMouseHookStruct;
@@ -99,6 +93,7 @@ type
     constructor create;
   public
     class function Instance:TLLMouseHook;
+    destructor Destroy; override;
 
     function AddListener(AListener:TOnMouseHookListener):integer;
     procedure RemoveListener(AIndex:Integer);
@@ -123,6 +118,7 @@ type
     constructor create;
   public
     class function Instance:TLLKbdHook;
+    destructor Destroy; override;
 
     function AddListener(AListener:TOnKbdHookListener):integer;
     procedure RemoveListener(AIndex:Integer);
@@ -157,17 +153,17 @@ end;
 
 procedure TCustomHookThread.ListenHook;
 var
-  AReadyEvent:THandle;
   msg:TMsg;
 begin
-//  AReadyEvent := ReadyEvent.Handle;
   while
     GetMessage(Msg, 0, 0, 0)
-    and (msg.message <> WM_APP_STOPHOOK) do
+    and not terminated
+//    and (msg.message <> WM_APP_STOPHOOK)
+  do
   begin
     TranslateMessage(Msg);
     DispatchMessage(Msg);
-    if msg.message=WM_APP_LLMOUSE then
+    if msg.message=WM_APP_HOOKMSG then
       OnHookReceived
   end
 end;
@@ -204,7 +200,7 @@ begin
     finally
       UnlockList
     end;
-    PostThreadMessage(TLLMouseHook.fThreadId, WM_APP_LLMOUSE, wparam, code);
+    PostThreadMessage(TLLMouseHook.fThreadId, WM_APP_HOOKMSG, wparam, code);
     result := CallNextHookEx(TLLMouseHook.fHandle, code, wparam, lparam);
     exit
   end;
@@ -229,7 +225,15 @@ begin
     inherited create
   end
   else
-    raise Exception.Create('Hook already exists!!')
+    raise Exception.Create('WH_MOUSE_LL Hook already exists!!')
+end;
+
+destructor TLLMouseHook.Destroy;
+begin
+  WaitFor;
+  FreeAndNil(fBuffer);
+  Freeandnil(fListeners);
+  inherited;
 end;
 
 class function TLLMouseHook.Instance: TLLMouseHook;
@@ -252,10 +256,7 @@ begin
         Delete(0)
       end
       else
-      begin
-//        fReady.ResetEvent;
         exit
-      end
     finally
       UnlockList
     end;
@@ -278,8 +279,14 @@ begin
       UnlockList
     end;
 
-    if AMouseMsg.wparam<>WM_MOUSEMOVE then
-      writeln(AMouseMsg.ToString)
+{$IFDEF HOOK_TRACE}
+//    if AMouseMsg.wparam<>WM_MOUSEMOVE then
+    begin
+      var currPt:TPoint;
+      GetCursorPos(currPt);
+      writeln(format('%d,%d %s',[currPt.X, currPt.Y, AMouseMsg.ToString]))
+    end;
+{$ENDIF}
   until false;
 end;
 
@@ -367,7 +374,7 @@ begin
     finally
       UnlockList
     end;
-    PostThreadMessage(TLLKbdHook.fThreadId, WM_APP_LLMOUSE, wparam, code);
+    PostThreadMessage(TLLKbdHook.fThreadId, WM_APP_HOOKMSG, wparam, code);
     result := CallNextHookEx(TLLKbdHook.fHandle, code, wparam, lparam);
     exit
   end;
@@ -376,20 +383,38 @@ end;
 
 function TLLKbdHook.AddListener(AListener: TOnKbdHookListener): integer;
 begin
-
+  with fListeners, LockList do
+  try
+    result := Add(AListener)
+  finally
+    UnlockList
+  end;
 end;
 
 constructor TLLKbdHook.create;
 begin
   if fBuffer = nil then
+  begin
+    fListeners := TThreadList<TOnKbdHookListener>.create;
     inherited create
+  end
   else
-    raise Exception.Create('Hook already exists!!')
+    raise Exception.Create('WH_KEYBOARD_LL Hook already exists!!')
+end;
+
+destructor TLLKbdHook.Destroy;
+begin
+  WaitFor;
+  FreeAndNil(fBuffer);
+  Freeandnil(fListeners);
+  inherited;
 end;
 
 class function TLLKbdHook.Instance: TLLKbdHook;
 begin
-
+  if fInstance = nil then
+    fInstance := TLLKbdHook.create;
+  result := fInstance
 end;
 
 procedure TLLKbdHook.OnHookReceived;
@@ -412,13 +437,39 @@ begin
     finally
       UnlockList
     end;
+
+    with fListeners do
+    try
+      var list := LockList;
+      var i:Integer;
+      for i := 0 to list.Count-1 do
+      begin
+        var listener := list[i];
+        if listener <> nil then
+        try
+          listener(AMsg)
+        except
+          list[i] := nil
+        end
+      end
+    finally
+      UnlockList
+    end;
+
+{$IFDEF HOOK_TRACE}
     writeln(AMsg.ToString)
+{$ENDIF}
   until false;
 end;
 
 procedure TLLKbdHook.RemoveListener(AIndex: Integer);
 begin
-
+  with fListeners, LockList do
+  try
+    Items[AIndex] := nil
+  finally
+    UnlockList
+  end;
 end;
 
 function TLLKbdHook.StartHook(var AHandle: HHOOK): boolean;
@@ -429,7 +480,6 @@ begin
     fBuffer := TThreadList<TLLKbdHookData>.Create;
     fBuffer.Duplicates := dupAccept;
     fThreadId  := threadid;
-//    fReady := TSimpleEvent.Create(false);
     AHandle := SetWindowsHookEx(WH_KEYBOARD_LL, @_LowLevelKbdProc, 0, 0);
     fHandle := AHandle;
   end
@@ -448,10 +498,18 @@ begin
 end;
 
 function TLLMouseHookData.ToString: string;
+  procedure CheckFlag(AFlag:WORD; const AFlagName:string; var ADesc:string);
+  begin
+    if (data.flags and AFlag) = AFlag then
+      if ADesc='-' then
+        ADesc := AFlagName
+      else
+        ADesc := ADesc + ',' + AFlagname
+  end;
 begin
   var msgname := format('$%4X',[wparam]);
   var msgdet := format('%d,%d',[data.pt.x, data.pt.Y]);
-  var msgdata := '';
+  var msgdata:string := '-';
   case wparam of
     WM_LBUTTONDBLCLK    : msgname := 'WM_LBUTTONDBLCLK';
     WM_LBUTTONDOWN      : msgname := 'WM_LBUTTONDOWN';
@@ -469,6 +527,25 @@ begin
     WM_XBUTTONDOWN      : msgname := 'WM_XBUTTONDOWN';
     WM_XBUTTONUP        : msgname := 'WM_XBUTTONUP';
   end;
+
+  CheckFlag(MOUSEEVENTF_MOVE, 'MOUSEEVENTF_MOVE', msgdata);
+  CheckFlag(MOUSEEVENTF_LEFTDOWN, 'MOUSEEVENTF_LEFTDOWN', msgdata);
+  CheckFlag(MOUSEEVENTF_LEFTUP, 'MOUSEEVENTF_LEFTUP', msgdata);
+  CheckFlag(MOUSEEVENTF_RIGHTDOWN, 'MOUSEEVENTF_RIGHTDOWN', msgdata);
+  CheckFlag(MOUSEEVENTF_RIGHTUP, 'MOUSEEVENTF_RIGHTUP', msgdata);
+  CheckFlag(MOUSEEVENTF_MIDDLEDOWN, 'MOUSEEVENTF_MIDDLEDOWN', msgdata);
+  CheckFlag(MOUSEEVENTF_MIDDLEUP, 'MOUSEEVENTF_MIDDLEUP', msgdata);
+  CheckFlag(MOUSEEVENTF_XDOWN, 'MOUSEEVENTF_XDOWN', msgdata);
+  CheckFlag(MOUSEEVENTF_XUP, 'MOUSEEVENTF_XUP', msgdata);
+  CheckFlag(MOUSEEVENTF_WHEEL, 'MOUSEEVENTF_WHEEL', msgdata);
+  CheckFlag(MOUSEEVENTF_HWHEEL, 'MOUSEEVENTF_HWHEEL', msgdata);
+  CheckFlag(MOUSEEVENTF_MOVE_NOCOALESCE, 'MOUSEEVENTF_MOVE_NOCOALESCE', msgdata);
+  CheckFlag(MOUSEEVENTF_VIRTUALDESK, 'MOUSEEVENTF_VIRTUALDESK', msgdata);
+  CheckFlag(MOUSEEVENTF_ABSOLUTE, 'MOUSEEVENTF_ABSOLUTE', msgdata);
+
+  if msgdata='-' then
+    msgdata := format('$%4.4X',[data.flags]);
+
   result := format('%s %s %s',[msgname, msgdet, msgdata])
 end;
 

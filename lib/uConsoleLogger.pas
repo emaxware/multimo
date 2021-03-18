@@ -85,8 +85,6 @@ begin
       if FHaveDefaultConsole then
       begin
         FDefaultConsoleBuffer := TJclScreenBuffer.Create(Stdout);
-//        Log(llTrace, 'Default logging started..')
-//        logBuffer.Write('Log started..'#13#10);
       end;
       break
     until false;
@@ -104,7 +102,7 @@ end;
 { TLoggerMonitor }
 
 procedure TConsoleLogger.TConsoleMonitor.Execute;
-var index:integer;
+var index:cardinal;
 begin
   with TJclConsole.Default do
   while Input.WaitEvent do
@@ -139,43 +137,37 @@ begin
       if assigned(FConsoleBuffer) then
         with FConsoleBuffer, Font do
         begin
-//          case ALogLevel of
-//            llCritical:
-//            begin
-//              BgColor := bclRed;
-//              Color := fclWhite
-//            end;
-//
-//            llError:
-//            begin
-//              BgColor := bclBlack;
-//              Color := fclRed
-//            end;
-//
-//            llWarning:
-//            begin
-//              BgColor := bclBlack;
-//              Color := fclYellow
-//            end;
-//
-//            llInfo:
-//            begin
-//              BgColor := bclBlack;
-//              Color := fclWhite
-//            end;
-//
-//            llDebug:
-//            begin
-//              BgColor := bclGreen;
-//              Color := fclWhite
-//            end;
-//
-//            llTrace:
-//            begin
-//              BgColor := bclGreen;
-//              Color := fclBlack
-//            end;
-//          end;
+          case ALogLevel of
+            lpError:
+            begin
+              BgColor := bclBlack;
+              Color := fclRed
+            end;
+
+            lpWarning:
+            begin
+              BgColor := bclBlack;
+              Color := fclYellow
+            end;
+
+            lpInfo:
+            begin
+              BgColor := bclBlack;
+              Color := fclWhite
+            end;
+
+            lpDebug:
+            begin
+              BgColor := bclBlue;
+              Color := fclWhite
+            end;
+
+            lpVerbose:
+            begin
+              BgColor := bclBlue;
+              Color := fclYellow
+            end;
+          end;
           Write(ALogMsg+#13#10)
         end
     end,
@@ -190,53 +182,6 @@ begin
     else
       FConsoleBuffer := AddConsoleBuffer
 end;
-
-//function TConsoleLogger.InternalLog(ALogLevel:TLogPriority; const ALogMsg:string):string;
-//begin
-//  result := ALogMsg;
-//  if assigned(FConsoleBuffer) then
-//    with FConsoleBuffer, Font do
-//    begin
-//      case ALogLevel of
-//        llCritical:
-//        begin
-//          BgColor := bclRed;
-//          Color := fclWhite
-//        end;
-//
-//        llError:
-//        begin
-//          BgColor := bclBlack;
-//          Color := fclRed
-//        end;
-//
-//        llWarning:
-//        begin
-//          BgColor := bclBlack;
-//          Color := fclYellow
-//        end;
-//
-//        llInfo:
-//        begin
-//          BgColor := bclBlack;
-//          Color := fclWhite
-//        end;
-//
-//        llDebug:
-//        begin
-//          BgColor := bclGreen;
-//          Color := fclWhite
-//        end;
-//
-//        llTrace:
-//        begin
-//          BgColor := bclGreen;
-//          Color := fclBlack
-//        end;
-//      end;
-//      Write(ALogMsg+#13#10)
-//    end
-//end;
 
 initialization
 

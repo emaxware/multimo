@@ -41,9 +41,9 @@ type
 
     class constructor create;
 
-    destructor destroy; override;
   public
     procedure AfterConstruction; override;
+    destructor Destroy; override;
 
     class function ConsoleOptionHandler:TMissingOptionHandler;
 
@@ -85,7 +85,7 @@ type
 
     constructor create;
   public
-    destructor destroy; override;
+    destructor Destroy; override;
 
     function asArray(const delim:string = ','):TStringDynArray;
 

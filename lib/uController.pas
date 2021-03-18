@@ -4,7 +4,6 @@ interface
 
 uses
   uCommandLineOptions
-//  , dProtocol
   , system.SyncObjs
   ;
 
@@ -26,17 +25,18 @@ type
     function Stop: boolean; virtual;
 
     function Started:boolean; virtual;
-//    property MachineName:string read GetMachineName write fMachineName;
   end;
 
   TDispatchController = class(TCustomController)
   protected
     fOpts:TCmdOptions;
+    fHookLogListener:integer;
     class var fInstance:TDispatchController;
   public
-    constructor create;
+    constructor create; reintroduce;
 
     function Start: boolean; override;
+    function Stop:boolean; override;
 
     class function Instance:TDispatchController;
   end;
@@ -55,6 +55,7 @@ uses
   , uLLHookLib
   , uSendInput
   , uHookInputController
+  , uLogController
   ;
 
 constructor TDispatchController.create;
@@ -64,18 +65,20 @@ begin
   fOpts
     .Add('HOOK', [cosCmd])
       .BeginSubCmd
-      .Add('MOUSEMOVE',[cosCmd])
+      .Add('MOUSE',[cosCmd])
       .Add('KEYBD',[cosCmd])
+      .Add('LOG',[cosCmd])
       .EndSubCmd
     .Add('SERVER', [], '8989')
       .BeginSubCmd
 //      .Add('ECHO', [], 'Hello')
 //      .Add('LISTENINPUT', [cosCmd])
-      .Add('LOG', [cosCmd], '')
+      .Add('LISTENLOG', [cosCmd], '')
       .Add('SENDINPUT', [cosCmd])
         .BeginSubCmd
         .Add('SENDSTRING', [], '15,0|-15,15|-15,-15|15,-15|15,15')
-        .Add('SENDHOOKINPUT', [cosCmd])
+        .Add('MOUSEINPUT', [cosCmd])
+        .Add('KBDINPUT', [cosCmd])
         .EndSubCmd
       .EndSubCmd
     .Add('CLIENT', [cosCmd])
@@ -83,12 +86,12 @@ begin
       .Add('PORT', [cosRequired], '8989', 'Protocol Port')
       .Add('HOST', [cosRequired])
 //      .Add('ECHO', [], 'Hello')
-      .Add('LOG', [cosCmd], 'Started')
+      .Add('SENDLOG', [cosCmd], 'Started')
       .Add('LISTENINPUT', [cosCmd])
 //      .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
 //      .Add('SENDHOOKINPUT', [cosCmd], '')
       .EndSubCmd
-    .Add('INPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
+    .Add('SENDINPUT', [], '15,0|-15,15|-15,-15|15,-15|15,15')
     ;
 
   var AVals:TCmdValue;
@@ -107,21 +110,39 @@ end;
 
 function TDispatchController.Start:boolean;
 begin
-//  with TProto.Instance do
-//  begin
   result := inherited;
   try
     if fVals.Enabled['HOOK'] then
+    with fVals['HOOK'] do
     begin
-      TLLMouseHook.Instance.Start
+      if Enabled['MOUSE'] then
+        TLLMouseHook.Instance.Start;
+      if Enabled['KEYBD'] then
+        TLLKbdHook.Instance.Start;
+      if Enabled['LOG'] then
+      begin
+        TLLMouseHook.Instance.AddListener(
+          procedure(AHookData:TLLMouseHookData)
+          begin
+            if AHookData.wparam <> WM_MOUSEMOVE then
+              log(AHookData.ToString);
+          end);
+        TLLKbdHook.Instance.AddListener(
+          procedure(AHookData:TLLKbdHookData)
+          begin
+            log(AHookData.ToString);
+          end);
+      end;
     end;
 
     if fVals.Enabled['SERVER'] then
     with fVals['SERVER'] do
     begin
-//          StartServer(cancel, fVals['SERVER'],
       if Enabled['SENDINPUT'] then
-        THookInputServerController.create(Self, Option['SENDINPUT'], 'SENDINPUT');
+        THookInputServerController.create(Self, Option['SENDINPUT'], 'SENDINPUT').Start;
+
+      if Enabled['LISTENLOG'] then
+        TLogServerController.create(Self, Option['LISTENLOG'], 'LISTENLOG').Start;
 
       TProto.Instance.StartServer(nil, fVals['SERVER'])
     end
@@ -130,15 +151,23 @@ begin
     with fVals['CLIENT'] do
     begin
       if Enabled['LISTENINPUT'] then
-        THookInputClientController.create(Self, Option['LISTENINPUT'], 'LISTENINPUT', Option['PORT'].asInteger, Option['HOST'].Value)
+        THookInputClientController.create(Self, Option['LISTENINPUT'], 'SENDINPUT', Option['PORT'].asInteger, Option['HOST'].Value).Start;
+
+      if Enabled['SENDLOG'] then
+        with TLogClientController.create(Self, Option['SENDLOG'], 'LISTENLOG', Option['PORT'].asInteger, Option['HOST'].Value) do
+        begin
+          Start;
+          for var i := 0 to 100 do
+            Logger.DefLogFmt('This is test #%d',[i])
+        end;
     end;
 
-    if fVals.Enabled['MOUSEMOVE'] then
+    if fVals.Enabled['SENDINPUT'] then
     begin
       var ih := TSendInputHelper.create;
       try
 //            ih.AddDelay(10000);
-        ih.AddMouseMoves(fVals['MOUSEMOVE'].asArray('|'));
+        ih.AddMouseMoves(fVals['SENDINPUT'].asArray('|'));
         ih.Flush
       finally
         ih.free
@@ -152,6 +181,16 @@ begin
       raise
     end
   end
+end;
+
+function TDispatchController.Stop: boolean;
+begin
+  result := inherited stop;
+  if result then
+  begin
+    TLLMouseHook.Instance.Terminate;
+    TLLKbdHook.Instance.Terminate;
+  end;
 end;
 
 { TCustomController }
@@ -177,6 +216,7 @@ end;
 
 function TCustomController.Stop: boolean;
 begin
+  TProto.Instance.Stop;
   fStarted.ResetEvent;
   result := true
 end;
